@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
+import { useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
 
 interface HLSPlayerProps {
   src: string;
@@ -11,7 +11,13 @@ interface HLSPlayerProps {
   xhrSetup?: (xhr: XMLHttpRequest, url: string) => void;
 }
 
-export default function HLSPlayer({ src, title, subtitle, className = '', xhrSetup }: HLSPlayerProps) {
+export default function HLSPlayer({
+  src,
+  title,
+  subtitle,
+  className = "",
+  xhrSetup,
+}: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -23,13 +29,17 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [bufferedRanges, setBufferedRanges] = useState<Array<{ start: number; end: number }>>([]);
+  const [bufferedRanges, setBufferedRanges] = useState<
+    Array<{ start: number; end: number }>
+  >([]);
   const [volume, setVolume] = useState(1);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [qualityLevels, setQualityLevels] = useState<Array<{ level: number; height: number; bitrate: number; label: string }>>([]);
+  const [qualityLevels, setQualityLevels] = useState<
+    Array<{ level: number; height: number; bitrate: number; label: string }>
+  >([]);
   const [currentQualityLevel, setCurrentQualityLevel] = useState<number>(-1);
   const [isManualQuality, setIsManualQuality] = useState(false);
   const isManualQualityRef = useRef(false);
@@ -67,13 +77,13 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
         setError(null);
-        
+
         // Set to highest quality level available and populate quality levels
         if (hls && hls.levels && hls.levels.length > 0) {
           const highestLevel = hls.levels.length - 1;
           hls.currentLevel = highestLevel;
           setCurrentQualityLevel(highestLevel);
-          
+
           // Create quality levels array for dropdown (keep original indices)
           const levels = hls.levels.map((level, index) => ({
             level: index,
@@ -81,12 +91,16 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
             bitrate: level.bitrate || 0,
             label: level.height ? `${level.height}p` : `Level ${index}`,
           }));
-          
+
           // Sort by height descending for display, but keep original level indices
           const sortedLevels = [...levels].sort((a, b) => b.height - a.height);
           setQualityLevels(sortedLevels);
-          
-          console.log(`Set to highest quality level: ${highestLevel} (${hls.levels[highestLevel].height}p, ${Math.round(hls.levels[highestLevel].bitrate / 1000)}kbps)`);
+
+          console.log(
+            `Set to highest quality level: ${highestLevel} (${
+              hls.levels[highestLevel].height
+            }p, ${Math.round(hls.levels[highestLevel].bitrate / 1000)}kbps)`
+          );
         }
       });
 
@@ -95,17 +109,26 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
         if (hls && hls.levels && hls.levels.length > 0) {
           const currentLevel = data.level;
           setCurrentQualityLevel(currentLevel);
-          
+
           // Only auto-upgrade if user hasn't manually selected a quality
           if (!isManualQualityRef.current) {
             const highestLevel = hls.levels.length - 1;
-            
+
             // If we're not at the highest level and bandwidth allows, try to switch up
-            if (currentLevel < highestLevel && hls.bandwidthEstimate > hls.levels[highestLevel].bitrate * 1.2) {
+            if (
+              currentLevel < highestLevel &&
+              hls.bandwidthEstimate > hls.levels[highestLevel].bitrate * 1.2
+            ) {
               setTimeout(() => {
-                if (hls && hls.currentLevel < highestLevel && !isManualQualityRef.current) {
+                if (
+                  hls &&
+                  hls.currentLevel < highestLevel &&
+                  !isManualQualityRef.current
+                ) {
                   hls.currentLevel = highestLevel;
-                  console.log(`Upgraded to highest quality level: ${highestLevel}`);
+                  console.log(
+                    `Upgraded to highest quality level: ${highestLevel}`
+                  );
                 }
               }, 2000); // Wait 2 seconds before upgrading
             }
@@ -117,32 +140,32 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error('Fatal network error encountered, try to recover');
+              console.error("Fatal network error encountered, try to recover");
               hls?.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error('Fatal media error encountered, try to recover');
+              console.error("Fatal media error encountered, try to recover");
               hls?.recoverMediaError();
               break;
             default:
-              console.error('Fatal error, cannot recover');
+              console.error("Fatal error, cannot recover");
               hls?.destroy();
-              setError('Failed to load video');
+              setError("Failed to load video");
               setIsLoading(false);
               break;
           }
         }
       });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       // Native HLS support (Safari)
       // Note: Native HLS doesn't support xhrSetup, headers must be set via CORS or other means
       video.src = src;
-      video.addEventListener('loadedmetadata', () => {
+      video.addEventListener("loadedmetadata", () => {
         setIsLoading(false);
         setError(null);
       });
     } else {
-      setError('HLS is not supported in this browser');
+      setError("HLS is not supported in this browser");
       setIsLoading(false);
     }
 
@@ -158,7 +181,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       setDuration(video.duration);
       updateBufferedRanges();
     };
-    
+
     const updateBufferedRanges = () => {
       if (video.buffered.length > 0 && video.duration > 0) {
         const ranges: Array<{ start: number; end: number }> = [];
@@ -241,37 +264,37 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       setIsBuffering(false);
     };
 
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('durationchange', handleDurationChange);
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-    video.addEventListener('volumechange', handleVolumeChange);
-    video.addEventListener('waiting', handleWaiting);
-    video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('canplaythrough', handleCanPlay);
-    video.addEventListener('playing', handlePlaying);
-    video.addEventListener('seeking', handleSeeking);
-    video.addEventListener('seeked', handleSeeked);
-    video.addEventListener('stalled', handleStalled);
-    video.addEventListener('loadeddata', handleLoadedData);
-    video.addEventListener('progress', updateBufferedRanges);
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("durationchange", handleDurationChange);
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("volumechange", handleVolumeChange);
+    video.addEventListener("waiting", handleWaiting);
+    video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("canplaythrough", handleCanPlay);
+    video.addEventListener("playing", handlePlaying);
+    video.addEventListener("seeking", handleSeeking);
+    video.addEventListener("seeked", handleSeeked);
+    video.addEventListener("stalled", handleStalled);
+    video.addEventListener("loadeddata", handleLoadedData);
+    video.addEventListener("progress", updateBufferedRanges);
 
     return () => {
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('durationchange', handleDurationChange);
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-      video.removeEventListener('volumechange', handleVolumeChange);
-      video.removeEventListener('waiting', handleWaiting);
-      video.removeEventListener('canplay', handleCanPlay);
-      video.removeEventListener('canplaythrough', handleCanPlay);
-      video.removeEventListener('playing', handlePlaying);
-      video.removeEventListener('seeking', handleSeeking);
-      video.removeEventListener('seeked', handleSeeked);
-      video.removeEventListener('stalled', handleStalled);
-      video.removeEventListener('loadeddata', handleLoadedData);
-      video.removeEventListener('progress', updateBufferedRanges);
-      
+      video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("durationchange", handleDurationChange);
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("volumechange", handleVolumeChange);
+      video.removeEventListener("waiting", handleWaiting);
+      video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("canplaythrough", handleCanPlay);
+      video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("seeking", handleSeeking);
+      video.removeEventListener("seeked", handleSeeked);
+      video.removeEventListener("stalled", handleStalled);
+      video.removeEventListener("loadeddata", handleLoadedData);
+      video.removeEventListener("progress", updateBufferedRanges);
+
       if (bufferingTimeoutRef.current) {
         clearTimeout(bufferingTimeoutRef.current);
         bufferingTimeoutRef.current = null;
@@ -300,7 +323,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
 
     const showControlsWithTimeout = () => {
       setShowControls(true);
-      
+
       // Clear existing timeout
       if (hideControlsTimeoutRef.current) {
         clearTimeout(hideControlsTimeoutRef.current);
@@ -324,8 +347,8 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       }
     };
 
-    container.addEventListener('mousemove', handleMouseMove);
-    container.addEventListener('mouseleave', handleMouseLeave);
+    container.addEventListener("mousemove", handleMouseMove);
+    container.addEventListener("mouseleave", handleMouseLeave);
 
     // Initial timeout (only if playing)
     if (isPlaying) {
@@ -333,8 +356,8 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     }
 
     return () => {
-      container.removeEventListener('mousemove', handleMouseMove);
-      container.removeEventListener('mouseleave', handleMouseLeave);
+      container.removeEventListener("mousemove", handleMouseMove);
+      container.removeEventListener("mouseleave", handleMouseLeave);
       if (hideControlsTimeoutRef.current) {
         clearTimeout(hideControlsTimeoutRef.current);
       }
@@ -356,16 +379,25 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       setIsFullscreen(isFullscreenActive);
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange
+      );
+      document.removeEventListener(
+        "mozfullscreenchange",
+        handleFullscreenChange
+      );
+      document.removeEventListener(
+        "MSFullscreenChange",
+        handleFullscreenChange
+      );
     };
   }, []);
 
@@ -378,14 +410,18 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts if user is typing in an input field
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
         return;
       }
 
       // Prevent default behavior for our shortcuts
       switch (e.key) {
-        case ' ':
-        case 'Spacebar':
+        case " ":
+        case "Spacebar":
           e.preventDefault();
           if (video.paused) {
             video.play();
@@ -393,15 +429,18 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
             video.pause();
           }
           break;
-        case 'ArrowLeft':
+        case "ArrowLeft":
           e.preventDefault();
           video.currentTime = Math.max(video.currentTime - 10, 0);
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           e.preventDefault();
-          video.currentTime = Math.min(video.currentTime + 10, video.duration || 0);
+          video.currentTime = Math.min(
+            video.currentTime + 10,
+            video.duration || 0
+          );
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           // Increase volume by 5%
           const currentVol = video.volume;
@@ -410,7 +449,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
           setVolume(newVolumeUp);
           setIsMuted(newVolumeUp === 0);
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
           // Decrease volume by 5%
           const currentVolDown = video.volume;
@@ -419,7 +458,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
           setVolume(newVolumeDown);
           setIsMuted(newVolumeDown === 0);
           break;
-        case 'Enter':
+        case "Enter":
           // Only enter fullscreen if not already in fullscreen
           if (!isFullscreen) {
             e.preventDefault();
@@ -437,8 +476,8 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
             }
           }
           break;
-        case 'Escape':
-        case 'Esc':
+        case "Escape":
+        case "Esc":
           // Only exit fullscreen if in fullscreen
           if (isFullscreen) {
             e.preventDefault();
@@ -457,13 +496,13 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     };
 
     // Add event listener to container or window
-    container.addEventListener('keydown', handleKeyDown);
+    container.addEventListener("keydown", handleKeyDown);
     // Also listen on window for when container is focused
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      container.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keydown', handleKeyDown);
+      container.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isFullscreen]);
 
@@ -479,12 +518,12 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
         if ((document as any).captured !== undefined) {
           return (document as any).captured;
         }
-        
+
         // Check for Firefox
         if ((document as any).mozCaptured !== undefined) {
           return (document as any).mozCaptured;
         }
-        
+
         // Check for Safari/WebKit
         if ((window as any).captured !== undefined) {
           return (window as any).captured;
@@ -500,7 +539,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     const handleCapturedChange = () => {
       const captured = detectScreenSharing();
       setIsScreenSharing(captured);
-      
+
       if (captured && video) {
         video.pause();
       }
@@ -517,7 +556,10 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     if ((document as any).addEventListener) {
       // Try to listen for capturedchange event (Chrome/Edge)
       try {
-        (document as any).addEventListener('capturedchange', handleCapturedChange);
+        (document as any).addEventListener(
+          "capturedchange",
+          handleCapturedChange
+        );
       } catch (e) {
         // Event not supported
       }
@@ -551,7 +593,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       });
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Monitor for focus changes (screen sharing might cause focus loss)
     const handleFocusChange = () => {
@@ -569,24 +611,27 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
       }, 100);
     };
 
-    window.addEventListener('blur', handleFocusChange);
-    window.addEventListener('focus', handleFocusChange);
+    window.addEventListener("blur", handleFocusChange);
+    window.addEventListener("focus", handleFocusChange);
 
     return () => {
       if (screenCheckIntervalRef.current) {
         clearInterval(screenCheckIntervalRef.current);
         screenCheckIntervalRef.current = null;
       }
-      
+
       try {
-        (document as any).removeEventListener('capturedchange', handleCapturedChange);
+        (document as any).removeEventListener(
+          "capturedchange",
+          handleCapturedChange
+        );
       } catch (e) {
         // Event not supported
       }
-      
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleFocusChange);
-      window.removeEventListener('focus', handleFocusChange);
+
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleFocusChange);
+      window.removeEventListener("focus", handleFocusChange);
     };
   }, []);
 
@@ -678,7 +723,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     if (!hls) return;
 
     const selectedLevel = parseInt(e.target.value);
-    
+
     if (selectedLevel === -1) {
       // Auto quality
       setIsManualQuality(false);
@@ -695,33 +740,23 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
   };
 
   const formatTime = (seconds: number): string => {
-    if (isNaN(seconds)) return '0:00';
+    if (isNaN(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className={`relative w-full ${isFullscreen ? 'h-screen flex items-center justify-center' : 'max-w-6xl mx-auto rounded-lg'} bg-black overflow-hidden shadow-2xl ${className}`}
+      className={`relative w-full ${
+        isFullscreen
+          ? "h-screen flex items-center justify-center"
+          : "max-w-6xl mx-auto rounded-sm"
+      } bg-black overflow-hidden shadow-2xl ${className}`}
       tabIndex={0}
       onFocus={() => {}}
     >
-      {(isLoading || isBuffering) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative w-16 h-16">
-              <div className="absolute inset-0 border-4 border-white/20 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-transparent border-t-white rounded-full animate-spin"></div>
-            </div>
-            <div className="text-white text-sm">
-              {isLoading ? 'Loading video...' : 'Buffering...'}
-            </div>
-          </div>
-        </div>
-      )}
-
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
           <div className="text-red-500 text-center p-4">
@@ -736,17 +771,17 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
         <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
           <div className="text-center p-8">
             <div className="mb-4">
-              <svg 
-                className="w-16 h-16 mx-auto text-white/80" 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className="w-16 h-16 mx-auto text-white/80"
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" 
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
             </div>
@@ -763,12 +798,20 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
         </div>
       )}
 
-      <div 
-        className={`${isFullscreen ? 'w-full h-full flex items-center justify-center' : 'w-full'}`}
+      <div
+        className={`${
+          isFullscreen
+            ? "w-full h-full flex items-center justify-center"
+            : "w-full"
+        }`}
       >
         <video
           ref={videoRef}
-          className={`${isFullscreen ? 'max-w-full max-h-full w-full h-auto object-contain' : 'w-full h-auto'} aspect-video cursor-pointer`}
+          className={`${
+            isFullscreen
+              ? "max-w-full max-h-full w-full h-auto object-contain"
+              : "w-full h-auto"
+          } aspect-video cursor-pointer`}
           playsInline
           controls={false}
           preload="auto"
@@ -782,9 +825,9 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
 
       {/* Title and Subtitle */}
       {(title || subtitle) && (
-        <div 
+        <div
           className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${
-            showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
           }`}
         >
           {/* Black gradient background */}
@@ -796,28 +839,31 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
               </h2>
             )}
             {subtitle && (
-              <p className="text-sm text-white/90 drop-shadow-lg">
-                {subtitle}
-              </p>
+              <p className="text-sm text-white/90 drop-shadow-lg">{subtitle}</p>
             )}
           </div>
         </div>
       )}
 
       {/* Center Controls (Play/Pause and Skip buttons) */}
-      <div 
-        className={`absolute inset-0 flex items-center justify-center z-20 pointer-events-none transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <div className="flex items-center gap-4 pointer-events-auto">
+      {(!isLoading || !isBuffering) && (
+        <div
+          className={`absolute inset-0 flex items-center justify-center z-20 pointer-events-none transition-opacity duration-300 ${
+            showControls ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="flex items-center gap-4 pointer-events-auto">
             {/* Skip Backward 10s Button */}
             <button
               onClick={skipBackward}
               className="w-14 h-14 rounded-full bg-black/70 hover:bg-black/90 transition-all flex items-center justify-center group"
               aria-label="Skip backward 10 seconds"
             >
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-8 h-8 text-white"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
                 <path d="M10.5 12l5-3v6l-5-3z" />
               </svg>
@@ -827,14 +873,22 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
             <button
               onClick={togglePlay}
               className="w-20 h-20 rounded-full bg-black/70 hover:bg-black/90 transition-all flex items-center justify-center group"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
+              aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
-                <svg className="w-14 h-14 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-14 h-14 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                 </svg>
               ) : (
-                <svg className="w-14 h-14 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-14 h-14 text-white ml-1"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M8 5v14l11-7z" />
                 </svg>
               )}
@@ -846,33 +900,44 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
               className="w-14 h-14 rounded-full bg-black/70 hover:bg-black/90 transition-all flex items-center justify-center group"
               aria-label="Skip forward 10 seconds"
             >
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-8 h-8 text-white"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
                 <path d="M13.5 12l-5-3v6l5-3z" />
               </svg>
             </button>
           </div>
         </div>
+      )}
 
       {/* Custom Controls */}
-      <div 
+      <div
         className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
         {/* Progress Bar - YouTube Style */}
-        <div className="relative h-1 group cursor-pointer" onMouseEnter={() => {}}>
+        <div
+          className="relative h-1 group cursor-pointer"
+          onMouseEnter={() => {}}
+        >
           {/* Buffered ranges */}
           {duration > 0 && (
-            <div className="absolute top-0 left-0 w-full h-1 bg-white/30">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gray-500/30 ">
               {bufferedRanges.map((range, index) => {
-                const startPercent = Math.min((range.start / duration) * 100, 100);
+                const startPercent = Math.min(
+                  (range.start / duration) * 100,
+                  100
+                );
                 const endPercent = Math.min((range.end / duration) * 100, 100);
                 const width = Math.max(endPercent - startPercent, 0);
                 return (
                   <div
                     key={index}
-                    className="absolute top-0 h-1 bg-white/50 transition-all"
+                    className="absolute top-0 h-1 bg-gray-500/50 transition-all"
                     style={{
                       left: `${startPercent}%`,
                       width: `${width}%`,
@@ -882,7 +947,7 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
               })}
             </div>
           )}
-          
+
           {/* Progress bar */}
           <input
             type="range"
@@ -892,20 +957,22 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
             onChange={handleSeek}
             className="absolute top-0 left-0 w-full h-1 opacity-0 cursor-pointer z-10"
           />
-          
+
           {/* Visual progress indicator */}
-          <div 
+          <div
             className="absolute top-0 left-0 h-1 bg-red-600 transition-all duration-75"
             style={{
               width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
             }}
           />
-          
+
           {/* Progress thumb (YouTube style) */}
-          <div 
+          <div
             className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
             style={{
-              left: `calc(${duration > 0 ? (currentTime / duration) * 100 : 0}% - 6px)`,
+              left: `calc(${
+                duration > 0 ? (currentTime / duration) * 100 : 0
+              }% - 6px)`,
             }}
           />
         </div>
@@ -914,9 +981,8 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
         <div className="flex items-center px-2 py-2 text-white">
           {/* Left Controls */}
           <div className="flex items-center gap-1">
-
             {/* Volume Control */}
-            <div 
+            <div
               className="flex items-center"
               onMouseEnter={() => setShowVolumeSlider(true)}
               onMouseLeave={() => setShowVolumeSlider(false)}
@@ -924,19 +990,27 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
               <button
                 onClick={toggleMute}
                 className="flex items-center justify-center w-10 h-10 text-white hover:bg-white/10 rounded-full transition-colors"
-                aria-label={isMuted ? 'Unmute' : 'Mute'}
+                aria-label={isMuted ? "Unmute" : "Mute"}
               >
                 {isMuted || volume === 0 ? (
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-6 h-6"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
                   </svg>
                 ) : (
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-6 h-6"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                   </svg>
                 )}
               </button>
-              
+
               {/* Volume Slider (YouTube style - appears on hover) */}
               {showVolumeSlider && (
                 <div className="flex items-center px-2">
@@ -949,7 +1023,11 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
                     onChange={handleVolumeChange}
                     className="w-20 h-1 bg-white/30 rounded appearance-none cursor-pointer volume-slider"
                     style={{
-                      background: `linear-gradient(to right, #fff 0%, #fff ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%, rgba(255,255,255,0.3) 100%)`,
+                      background: `linear-gradient(to right, #fff 0%, #fff ${
+                        volume * 100
+                      }%, rgba(255,255,255,0.3) ${
+                        volume * 100
+                      }%, rgba(255,255,255,0.3) 100%)`,
                     }}
                   />
                 </div>
@@ -970,19 +1048,25 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
                 onClick={(e) => {
                   // Simple quality toggle for now - can be enhanced with dropdown
                   const current = isManualQuality ? currentQualityLevel : -1;
-                  const nextIndex = qualityLevels.findIndex(q => q.level === current) + 1;
+                  const nextIndex =
+                    qualityLevels.findIndex((q) => q.level === current) + 1;
                   if (nextIndex >= qualityLevels.length) {
-                    handleQualityChange({ target: { value: '-1' } } as any);
+                    handleQualityChange({ target: { value: "-1" } } as any);
                   } else {
-                    handleQualityChange({ target: { value: qualityLevels[nextIndex].level.toString() } } as any);
+                    handleQualityChange({
+                      target: {
+                        value: qualityLevels[nextIndex].level.toString(),
+                      },
+                    } as any);
                   }
                 }}
                 className="flex items-center justify-center min-w-[60px] h-8 text-white hover:bg-white/10 rounded px-2 text-xs font-medium transition-colors"
                 aria-label="Quality"
               >
-                {isManualQuality 
-                  ? qualityLevels.find(q => q.level === currentQualityLevel)?.label || 'Auto'
-                  : 'Auto'}
+                {isManualQuality
+                  ? qualityLevels.find((q) => q.level === currentQualityLevel)
+                      ?.label || "Auto"
+                  : "Auto"}
               </button>
             )}
 
@@ -990,14 +1074,22 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
             <button
               onClick={toggleFullscreen}
               className="flex items-center justify-center w-10 h-10 text-white hover:bg-white/10 rounded-full transition-colors"
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             >
               {isFullscreen ? (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
                 </svg>
               ) : (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
                 </svg>
               )}
@@ -1008,4 +1100,3 @@ export default function HLSPlayer({ src, title, subtitle, className = '', xhrSet
     </div>
   );
 }
-

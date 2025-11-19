@@ -8,19 +8,18 @@ type Props = {
 export default function PlayerLoader({ src = "" }: Props) {
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center py-8 px-4 sm:px-8">
-      <pre className="">{src}</pre>
       <div className="w-full max-w-6xl">
         <h1 className="text-3xl font-bold text-center mb-2 text-zinc-900 dark:text-zinc-50">
-          HLS Video Player
+          P2A Academy Video Player
         </h1>
         <p className="text-center mb-8 text-zinc-600 dark:text-zinc-400">
-          Tears of Steel - Demo HLS Stream
+          BSC Preli Math Course
         </p>
         {src !== "" && (
           <HLSPlayer
             src={src}
-            title="Tears of Steel"
-            subtitle="A short science fiction film"
+            title="BSC Preli Math Course"
+            subtitle=""
             xhrSetup={(xhr, url) => {
               // Add custom headers for video chunk requests
               xhr.setRequestHeader("X-Player", "p2a");
