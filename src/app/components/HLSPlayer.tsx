@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
+import { MdOutlineForward10, MdOutlineReplay10 } from "react-icons/md";
 
 interface HLSPlayerProps {
   src: string;
@@ -831,15 +832,17 @@ export default function HLSPlayer({
           }`}
         >
           {/* Black gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-linear-to-b from-black to-transparent pointer-events-none" />
           <div className="relative p-4">
             {title && (
-              <h2 className="text-xl font-bold text-white mb-1 drop-shadow-lg">
+              <h2 className="text-base md:text-lg lg:text-xl font-bold text-white mb-1 drop-shadow-lg line-clamp-1">
                 {title}
               </h2>
             )}
             {subtitle && (
-              <p className="text-sm text-white/90 drop-shadow-lg">{subtitle}</p>
+              <p className="text-sm text-white/90 drop-shadow-lg line-clamp-1">
+                {subtitle}
+              </p>
             )}
           </div>
         </div>
@@ -856,23 +859,16 @@ export default function HLSPlayer({
             {/* Skip Backward 10s Button */}
             <button
               onClick={skipBackward}
-              className="w-14 h-14 rounded-full bg-black/70 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="w-8 md:w-14 h-8 md:h-14 p-1 rounded-full bg-black/50 hover:bg-black/90 transition-all flex items-center justify-center group"
               aria-label="Skip backward 10 seconds"
             >
-              <svg
-                className="w-8 h-8 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
-                <path d="M10.5 12l5-3v6l-5-3z" />
-              </svg>
+              <MdOutlineReplay10 className="h-full w-full text-white" />
             </button>
 
             {/* Play/Pause Button */}
             <button
               onClick={togglePlay}
-              className="w-20 h-20 rounded-full bg-black/70 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="h-10 md:w-20 w-10 md:h-20 rounded-full bg-black/50 hover:bg-black/90 transition-all flex items-center justify-center group"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
@@ -897,17 +893,10 @@ export default function HLSPlayer({
             {/* Skip Forward 10s Button */}
             <button
               onClick={skipForward}
-              className="w-14 h-14 rounded-full bg-black/70 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="w-8 md:w-14 h-8 md:h-14 rounded-full bg-black/50 p-1 hover:bg-black/90 transition-all flex items-center justify-center group"
               aria-label="Skip forward 10 seconds"
             >
-              <svg
-                className="w-8 h-8 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
-                <path d="M13.5 12l-5-3v6l5-3z" />
-              </svg>
+              <MdOutlineForward10 className="h-full w-full text-white" />
             </button>
           </div>
         </div>
@@ -915,7 +904,7 @@ export default function HLSPlayer({
 
       {/* Custom Controls */}
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent transition-opacity duration-300 ${
+        className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black to-transparent transition-opacity duration-300 ${
           showControls ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
