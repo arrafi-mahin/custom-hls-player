@@ -46,6 +46,8 @@ export default function HLSPlayer({
   const isManualQualityRef = useRef(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const screenCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const qualityMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -376,6 +378,32 @@ export default function HLSPlayer({
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
+    // Helper function to detect mobile devices
+    const isMobileDevice = () => {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      ) || (window.innerWidth <= 768 && window.matchMedia("(orientation: portrait)").matches);
+    };
+
+    // Unlock orientation helper
+    const unlockOrientation = async () => {
+      if (!isMobileDevice()) return;
+
+      try {
+        if (screen.orientation && (screen.orientation as any).unlock) {
+          await (screen.orientation as any).unlock();
+        } else if ((screen as any).unlockOrientation) {
+          (screen as any).unlockOrientation();
+        } else if ((screen as any).mozUnlockOrientation) {
+          (screen as any).mozUnlockOrientation();
+        } else if ((screen as any).msUnlockOrientation) {
+          (screen as any).msUnlockOrientation();
+        }
+      } catch (error) {
+        console.log("Orientation unlock not available:", error);
+      }
+    };
+
     const handleFullscreenChange = () => {
       const isFullscreenActive = !!(
         document.fullscreenElement ||
@@ -384,12 +412,40 @@ export default function HLSPlayer({
         (document as any).msFullscreenElement
       );
       setIsFullscreen(isFullscreenActive);
+
+      // Unlock orientation when exiting fullscreen
+      if (!isFullscreenActive) {
+        unlockOrientation();
+      }
     };
 
     // For iOS, listen to video element events
     if (isIOS) {
-      const handleVideoBeginFullscreen = () => setIsFullscreen(true);
-      const handleVideoEndFullscreen = () => setIsFullscreen(false);
+      const handleVideoBeginFullscreen = () => {
+        setIsFullscreen(true);
+        // Try to lock orientation after entering fullscreen on iOS
+        setTimeout(() => {
+          const isMobileDevice = () => {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+              navigator.userAgent
+            );
+          };
+          if (isMobileDevice()) {
+            try {
+              if (screen.orientation && (screen.orientation as any).lock) {
+                (screen.orientation as any).lock("landscape");
+              }
+            } catch (error) {
+              // Orientation lock may not be available on iOS
+            }
+          }
+        }, 100);
+      };
+      const handleVideoEndFullscreen = () => {
+        setIsFullscreen(false);
+        // Unlock orientation when exiting fullscreen
+        unlockOrientation();
+      };
 
       // iOS specific events
       video.addEventListener(
@@ -1083,6 +1139,26 @@ export default function HLSPlayer({
     };
   }, []);
 
+  // Close quality menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        qualityMenuRef.current &&
+        !qualityMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowQualityMenu(false);
+      }
+    };
+
+    if (showQualityMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showQualityMenu]);
+
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -1139,7 +1215,60 @@ export default function HLSPlayer({
     video.currentTime = Math.max(video.currentTime - 10, 0);
   };
 
-  const toggleFullscreen = () => {
+  // Helper function to detect mobile devices
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    ) || (window.innerWidth <= 768 && window.matchMedia("(orientation: portrait)").matches);
+  };
+
+  // Lock orientation to landscape
+  const lockOrientationToLandscape = async () => {
+    if (!isMobileDevice()) return;
+
+    try {
+      // Screen Orientation API (modern browsers)
+      if (screen.orientation && (screen.orientation as any).lock) {
+        await (screen.orientation as any).lock("landscape");
+      }
+      // Legacy iOS Safari
+      else if ((screen as any).lockOrientation) {
+        (screen as any).lockOrientation("landscape");
+      }
+      // Legacy Android
+      else if ((screen as any).mozLockOrientation) {
+        (screen as any).mozLockOrientation("landscape");
+      }
+      // Legacy MS
+      else if ((screen as any).msLockOrientation) {
+        (screen as any).msLockOrientation("landscape");
+      }
+    } catch (error) {
+      // Orientation lock may fail if not in fullscreen or not supported
+      console.log("Orientation lock not available:", error);
+    }
+  };
+
+  // Unlock orientation
+  const unlockOrientation = async () => {
+    if (!isMobileDevice()) return;
+
+    try {
+      if (screen.orientation && (screen.orientation as any).unlock) {
+        await (screen.orientation as any).unlock();
+      } else if ((screen as any).unlockOrientation) {
+        (screen as any).unlockOrientation();
+      } else if ((screen as any).mozUnlockOrientation) {
+        (screen as any).mozUnlockOrientation();
+      } else if ((screen as any).msUnlockOrientation) {
+        (screen as any).msUnlockOrientation();
+      }
+    } catch (error) {
+      console.log("Orientation unlock not available:", error);
+    }
+  };
+
+  const toggleFullscreen = async () => {
     const container = containerRef.current;
     const video = videoRef.current;
     if (!container || !video) return;
@@ -1153,16 +1282,42 @@ export default function HLSPlayer({
       // iOS Safari requires webkitEnterFullscreen on the video element
       if (isIOS && (video as any).webkitEnterFullscreen) {
         (video as any).webkitEnterFullscreen();
+        // For iOS, try to lock orientation after a short delay
+        setTimeout(() => {
+          lockOrientationToLandscape();
+        }, 100);
       } else if (container.requestFullscreen) {
-        container.requestFullscreen();
+        const promise = container.requestFullscreen();
+        if (promise) {
+          promise
+            .then(() => {
+              // Lock orientation to landscape on mobile after entering fullscreen
+              lockOrientationToLandscape();
+            })
+            .catch(() => {
+              // Fullscreen request failed
+            });
+        }
       } else if ((container as any).webkitRequestFullscreen) {
         (container as any).webkitRequestFullscreen();
+        setTimeout(() => {
+          lockOrientationToLandscape();
+        }, 100);
       } else if ((container as any).mozRequestFullScreen) {
         (container as any).mozRequestFullScreen();
+        setTimeout(() => {
+          lockOrientationToLandscape();
+        }, 100);
       } else if ((container as any).msRequestFullscreen) {
         (container as any).msRequestFullscreen();
+        setTimeout(() => {
+          lockOrientationToLandscape();
+        }, 100);
       }
     } else {
+      // Unlock orientation before exiting fullscreen
+      unlockOrientation();
+
       // iOS Safari doesn't support programmatic exit, user must use native controls
       // But we'll still try to exit if possible
       if (document.exitFullscreen) {
@@ -1212,7 +1367,7 @@ export default function HLSPlayer({
         isFullscreen
           ? "h-screen flex items-center justify-center"
           : "max-w-6xl mx-auto rounded-sm"
-      } bg-black overflow-hidden shadow-2xl ${className}`}
+      }  overflow-hidden shadow-2xl ${className}`}
       tabIndex={0}
       onFocus={() => {}}
     >
@@ -1270,27 +1425,32 @@ export default function HLSPlayer({
             isFullscreen
               ? "max-w-full max-h-full w-full h-auto object-contain"
               : "w-full h-auto"
-          } aspect-video cursor-pointer`}
+          } aspect-video `}
           playsInline
           controls={false}
           preload="auto"
-          onClick={(e) => {
-            // Prevent event from bubbling to controls
-            e.stopPropagation();
-            togglePlay();
-          }}
+          // onClick={(e) => {
+          //   // Prevent event from bubbling to controls
+          //   e.stopPropagation();
+          //   togglePlay();
+          // }}
         />
       </div>
 
+      {/* Black Opacity Overlay - Shows when controls are visible */}
+      <div
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-300 z-10 ${
+          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      />
+
       {/* Title and Subtitle */}
       {(title || subtitle) && (
-        <div
-          className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${
-            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-        >
+        <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${
+          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}>
           {/* Black gradient background */}
-          <div className="absolute inset-0 bg-linear-to-b from-black to-transparent pointer-events-none" />
+          <div className="absolute pointer-events-none" />
           <div className="relative p-4">
             {title && (
               <h2 className="text-base md:text-lg lg:text-xl font-bold text-white mb-1 drop-shadow-lg line-clamp-1">
@@ -1317,44 +1477,33 @@ export default function HLSPlayer({
             {/* Skip Backward 10s Button */}
             <button
               onClick={skipBackward}
-              className="w-8 md:w-14 h-8 md:h-14 p-1 rounded-full bg-black/50 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="w-8 md:w-14 h-8 md:h-14 p-1 rounded-full transition-all flex items-center justify-center group"
               aria-label="Skip backward 10 seconds"
             >
-              <MdOutlineReplay10 className="h-full w-full text-white" />
+              <svg className="h-full w-full text-white" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" stroke-width="3" stroke="#ffff" fill="none"><polyline points="9.57 15.41 12.17 24.05 20.81 21.44" stroke-linecap="round"></polyline><path d="M26.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" stroke-linecap="round"></path><rect x="32.19" y="22.52" width="11.41" height="18.89" rx="5.7"></rect><path d="M12.14,23.94a21.91,21.91,0,1,1-.91,13.25" stroke-linecap="round"></path></svg>
             </button>
 
             {/* Play/Pause Button */}
             <button
               onClick={togglePlay}
-              className="h-10 md:w-20 w-10 md:h-20 p-1 rounded-full bg-black/50 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="h-10 md:w-20 w-10 md:h-20 p-1 rounded-full transition-all flex items-center justify-center group"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
-                <svg
-                  className="w-14 h-14 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                </svg>
+                <svg className="w-full h-full " viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg" ><path _ngcontent-serverapp-c107="" d="M10.734 19.11V4.89C10.734 3.54 10.164 3 8.72398 3H5.09398C3.65398 3 3.08398 3.54 3.08398 4.89V19.11C3.08398 20.46 3.65398 21 5.09398 21H8.72398C10.164 21 10.734 20.46 10.734 19.11Z" fill="#F3F4F6"></path><path _ngcontent-serverapp-c107="" d="M21.084 19.11V4.89C21.084 3.54 20.514 3 19.074 3H15.444C14.014 3 13.434 3.54 13.434 4.89V19.11C13.434 20.46 14.004 21 15.444 21H19.074C20.514 21 21.084 20.46 21.084 19.11Z" fill="#F3F4F6"></path></svg>
+        
               ) : (
-                <svg
-                  className="w-14 h-14 text-white ml-1"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <svg className="w-full h-full ng-star-inserted" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg" ><path _ngcontent-serverapp-c107="" d="M26.8389 40.0598L26.8389 109.511C26.8389 123.735 42.2966 132.661 54.6337 125.549L84.7509 108.204L114.868 90.7873C127.205 83.6753 127.205 65.8953 114.868 58.7833L84.7509 41.3661L54.6337 24.0216C42.2966 16.9096 26.8389 25.7633 26.8389 40.0598Z" fill="#F3F4F6"></path></svg>
               )}
             </button>
 
             {/* Skip Forward 10s Button */}
             <button
               onClick={skipForward}
-              className="w-8 md:w-14 h-8 md:h-14 rounded-full bg-black/50 p-1 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="w-8 md:w-14 h-8 md:h-14 p-1 rounded-full transition-all flex items-center justify-center group"
               aria-label="Skip forward 10 seconds"
             >
-              <MdOutlineForward10 className="h-full w-full text-white" />
+              <svg className="h-full w-full text-white" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" stroke-width="3" stroke="#ffff" fill="none"><path d="M23.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" stroke-linecap="round"></path><rect x="29.19" y="22.52" width="11.41" height="18.89" rx="5.7"></rect><polyline points="54.43 15.41 51.83 24.05 43.19 21.44" stroke-linecap="round"></polyline><path d="M51.86,23.94a21.91,21.91,0,1,0,.91,13.25" stroke-linecap="round"></path></svg>
             </button>
           </div>
         </div>
@@ -1362,7 +1511,7 @@ export default function HLSPlayer({
 
       {/* Custom Controls */}
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black to-transparent transition-opacity duration-300 ${
+        className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${
           showControls ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
@@ -1373,7 +1522,7 @@ export default function HLSPlayer({
         >
           {/* Buffered ranges */}
           {duration > 0 && (
-            <div className="absolute top-0 left-0 w-full h-1 bg-gray-500/30 ">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gray-300/30 ">
               {bufferedRanges.map((range, index) => {
                 const startPercent = Math.min(
                   (range.start / duration) * 100,
@@ -1384,7 +1533,7 @@ export default function HLSPlayer({
                 return (
                   <div
                     key={index}
-                    className="absolute top-0 h-1 bg-gray-500/50 transition-all"
+                    className="absolute top-0 h-1 bg-gray-300/60 transition-all"
                     style={{
                       left: `${startPercent}%`,
                       width: `${width}%`,
@@ -1425,7 +1574,7 @@ export default function HLSPlayer({
         </div>
 
         {/* Controls Bar */}
-        <div className="flex items-center px-2 py-2 text-white">
+        <div className="flex items-center px-2 md:py-1 text-white">
           {/* Left Controls */}
           <div className="flex items-center gap-1">
             {/* Volume Control */}
@@ -1489,32 +1638,96 @@ export default function HLSPlayer({
 
           {/* Right Controls */}
           <div className="flex items-center gap-1 ml-auto">
-            {/* Quality Selector */}
+            {/* Quality Selector Dropdown - YouTube Style */}
             {qualityLevels.length > 0 && (
-              <button
-                onClick={(e) => {
-                  // Simple quality toggle for now - can be enhanced with dropdown
-                  const current = isManualQuality ? currentQualityLevel : -1;
-                  const nextIndex =
-                    qualityLevels.findIndex((q) => q.level === current) + 1;
-                  if (nextIndex >= qualityLevels.length) {
-                    handleQualityChange({ target: { value: "-1" } } as any);
-                  } else {
-                    handleQualityChange({
-                      target: {
-                        value: qualityLevels[nextIndex].level.toString(),
-                      },
-                    } as any);
-                  }
-                }}
-                className="flex items-center justify-center min-w-[60px] h-8 text-white hover:bg-white/10 rounded px-2 text-xs font-medium transition-colors"
-                aria-label="Quality"
-              >
-                {isManualQuality
-                  ? qualityLevels.find((q) => q.level === currentQualityLevel)
-                      ?.label || "Auto"
-                  : "Auto"}
-              </button>
+              <div className="relative" ref={qualityMenuRef}>
+                <button
+                  onClick={() => setShowQualityMenu(!showQualityMenu)}
+                  className="flex items-center justify-center min-w-[60px] h-8 text-white hover:bg-white/10 rounded px-2 text-xs font-medium transition-colors"
+                  aria-label="Video Quality"
+                >
+                  {isManualQuality
+                    ? qualityLevels.find((q) => q.level === currentQualityLevel)
+                        ?.label || "Auto"
+                    : "Auto"}
+                  <svg
+                    className="w-4 h-4 ml-1"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+                {/* Dropdown Menu */}
+                {showQualityMenu && (
+                  <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-sm rounded shadow-lg min-w-[120px] overflow-hidden z-50">
+                    {/* Auto Option */}
+                    <button
+                      onClick={() => {
+                        handleQualityChange({
+                          target: { value: "-1" },
+                        } as any);
+                        setShowQualityMenu(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition-colors flex items-center justify-between"
+                    >
+                      <span>Auto</span>
+                      {!isManualQuality && (
+                        <svg
+                          className="w-4 h-4 text-white"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </button>
+
+                    {/* Quality Options */}
+                    {qualityLevels.map((quality) => {
+                      const isSelected =
+                        isManualQuality &&
+                        currentQualityLevel === quality.level;
+                      return (
+                        <button
+                          key={quality.level}
+                          onClick={() => {
+                            handleQualityChange({
+                              target: { value: quality.level.toString() },
+                            } as any);
+                            setShowQualityMenu(false);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition-colors flex items-center justify-between"
+                        >
+                          <span>{quality.label}</span>
+                          {isSelected && (
+                            <svg
+                              className="w-4 h-4 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Fullscreen Button */}
