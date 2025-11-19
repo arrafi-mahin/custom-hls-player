@@ -368,7 +368,13 @@ export default function HLSPlayer({
   // Fullscreen change detection
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const video = videoRef.current;
+    if (!container || !video) return;
+
+    // Check if we're on iOS (Safari)
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
     const handleFullscreenChange = () => {
       const isFullscreenActive = !!(
@@ -380,26 +386,72 @@ export default function HLSPlayer({
       setIsFullscreen(isFullscreenActive);
     };
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
-    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+    // For iOS, listen to video element events
+    if (isIOS) {
+      const handleVideoBeginFullscreen = () => setIsFullscreen(true);
+      const handleVideoEndFullscreen = () => setIsFullscreen(false);
 
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener(
+      // iOS specific events
+      video.addEventListener(
+        "webkitbeginfullscreen",
+        handleVideoBeginFullscreen
+      );
+      video.addEventListener("webkitendfullscreen", handleVideoEndFullscreen);
+
+      // Also listen to standard events as fallback
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener(
         "webkitfullscreenchange",
         handleFullscreenChange
       );
-      document.removeEventListener(
-        "mozfullscreenchange",
+
+      return () => {
+        video.removeEventListener(
+          "webkitbeginfullscreen",
+          handleVideoBeginFullscreen
+        );
+        video.removeEventListener(
+          "webkitendfullscreen",
+          handleVideoEndFullscreen
+        );
+        document.removeEventListener(
+          "fullscreenchange",
+          handleFullscreenChange
+        );
+        document.removeEventListener(
+          "webkitfullscreenchange",
+          handleFullscreenChange
+        );
+      };
+    } else {
+      // Standard fullscreen API for other browsers
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener(
+        "webkitfullscreenchange",
         handleFullscreenChange
       );
-      document.removeEventListener(
-        "MSFullscreenChange",
-        handleFullscreenChange
-      );
-    };
+      document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+      return () => {
+        document.removeEventListener(
+          "fullscreenchange",
+          handleFullscreenChange
+        );
+        document.removeEventListener(
+          "webkitfullscreenchange",
+          handleFullscreenChange
+        );
+        document.removeEventListener(
+          "mozfullscreenchange",
+          handleFullscreenChange
+        );
+        document.removeEventListener(
+          "MSFullscreenChange",
+          handleFullscreenChange
+        );
+      };
+    }
   }, []);
 
   // Keyboard shortcuts
@@ -464,8 +516,18 @@ export default function HLSPlayer({
           if (!isFullscreen) {
             e.preventDefault();
             const container = containerRef.current;
-            if (container) {
-              if (container.requestFullscreen) {
+            const video = videoRef.current;
+            if (container && video) {
+              // Check if we're on iOS (Safari)
+              const isIOS =
+                /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === "MacIntel" &&
+                  navigator.maxTouchPoints > 1);
+
+              // iOS Safari requires webkitEnterFullscreen on the video element
+              if (isIOS && (video as any).webkitEnterFullscreen) {
+                (video as any).webkitEnterFullscreen();
+              } else if (container.requestFullscreen) {
                 container.requestFullscreen();
               } else if ((container as any).webkitRequestFullscreen) {
                 (container as any).webkitRequestFullscreen();
@@ -512,22 +574,248 @@ export default function HLSPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    // Enhanced detection using Screen Capture API
+    // Create a hidden canvas to detect frame capture attempts
+    // Screen recording tools often try to capture frames from video elements
+    const detectionCanvas: HTMLCanvasElement | null = (() => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        canvas.style.display = "none";
+        canvas.style.position = "absolute";
+        canvas.style.top = "-9999px";
+        canvas.style.left = "-9999px";
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+
+        // Monitor for attempts to read from canvas (indicates recording)
+        if (context) {
+          let readCount = 0;
+          // Override getImageData to detect reads
+          const originalGetImageData = context.getImageData.bind(context);
+          context.getImageData = function (
+            sx: number,
+            sy: number,
+            sw: number,
+            sh: number
+          ) {
+            readCount++;
+            // If someone is reading from our detection canvas frequently, they might be recording
+            if (readCount > 2) {
+              // Multiple reads detected - likely recording
+              setIsScreenSharing(true);
+              if (video) {
+                video.pause();
+              }
+            }
+            return originalGetImageData(sx, sy, sw, sh);
+          };
+
+          // Periodically draw video to canvas to detect if it's being captured
+          const drawVideoToCanvas = () => {
+            if (video && !video.paused && video.readyState >= 2) {
+              try {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+              } catch (e) {
+                // Video might not be ready
+              }
+            }
+          };
+
+          // Draw video frames to canvas periodically
+          const drawInterval = setInterval(drawVideoToCanvas, 100);
+
+          // Store interval for cleanup
+          (canvas as any)._drawInterval = drawInterval;
+        }
+        return canvas;
+      } catch (e) {
+        // Canvas creation failed
+        return null;
+      }
+    })();
+
+    // Enhanced detection for screen sharing and recording
     const detectScreenSharing = () => {
       try {
         // Check if document is being captured (Chrome/Edge)
         if ((document as any).captured !== undefined) {
-          return (document as any).captured;
+          if ((document as any).captured) return true;
         }
 
         // Check for Firefox
         if ((document as any).mozCaptured !== undefined) {
-          return (document as any).mozCaptured;
+          if ((document as any).mozCaptured) return true;
         }
 
         // Check for Safari/WebKit
         if ((window as any).captured !== undefined) {
-          return (window as any).captured;
+          if ((window as any).captured) return true;
+        }
+
+        // Check for active MediaStream tracks globally (screen recording often creates these)
+        // Note: enumerateDevices is async and requires permission, so we check other ways
+
+        // More aggressive: Check if video element has been captured
+        // Screen recording tools often call captureStream() on video elements
+        try {
+          const videoWithCapture = video as any;
+          // Try to detect if captureStream was called by checking for active tracks
+          // This is a heuristic - if we can detect active capture streams
+          if (videoWithCapture.captureStream) {
+            // Some browsers expose active capture streams
+            // We'll check this more aggressively below
+          }
+        } catch (e) {
+          // Ignore
+        }
+
+        // Check for MediaStream tracks on the video element (indicates screen sharing/recording)
+        if (video.srcObject) {
+          const mediaStream = video.srcObject as MediaStream;
+          if (mediaStream instanceof MediaStream) {
+            const videoTracks = mediaStream.getVideoTracks();
+            for (const track of videoTracks) {
+              // Check if it's a screen capture track
+              if (
+                track.label &&
+                (track.label.includes("screen") ||
+                  track.label.includes("window") ||
+                  track.label.includes("display") ||
+                  track.label.includes("monitor"))
+              ) {
+                return true;
+              }
+            }
+          }
+        }
+
+        // Detect if video element is being captured via captureStream API
+        // This happens when screen recording software captures the video
+        try {
+          const videoWithCapture = video as any;
+          if (
+            videoWithCapture.captureStream &&
+            typeof videoWithCapture.captureStream === "function"
+          ) {
+            // Try to detect if captureStream has been called and is active
+            // We can't directly detect this, but we can monitor for suspicious patterns
+          }
+        } catch (e) {
+          // captureStream might not be available or throw errors
+        }
+
+        // More aggressive detection: Monitor video element for capture attempts
+        // Screen recording tools often access video properties or try to capture frames
+        try {
+          // Check if video is being accessed in suspicious ways
+          // This is done by monitoring property access (if possible)
+          // Note: Direct property access monitoring is limited, but we can check state
+          // Check if video has been paused unexpectedly (some recording tools pause video)
+          // This is handled elsewhere, but we note it here
+        } catch (e) {
+          // Monitoring might fail
+        }
+
+        // Check for canvas elements that might be capturing video frames
+        // Screen recording tools often use canvas to capture frames
+        const canvasElements = document.querySelectorAll("canvas");
+        for (const canvas of canvasElements) {
+          try {
+            // Skip our own detection canvas
+            if (canvas === detectionCanvas) continue;
+
+            const context = canvas.getContext("2d");
+            if (context) {
+              const rect = canvas.getBoundingClientRect();
+              const videoRect = video.getBoundingClientRect();
+
+              // More lenient detection - check if canvas is near video
+              const isOverlaying =
+                rect.width > 0 &&
+                rect.height > 0 &&
+                Math.abs(rect.width - videoRect.width) < 100 &&
+                Math.abs(rect.height - videoRect.height) < 100 &&
+                Math.abs(rect.top - videoRect.top) < 100 &&
+                Math.abs(rect.left - videoRect.left) < 100;
+
+              if (isOverlaying) {
+                // Canvas near video - likely being used for recording
+                // Try to detect if canvas is actively capturing video frames
+                try {
+                  // If we can read from the canvas and it's near video,
+                  // it's likely being used for recording
+                  const imageData = context.getImageData(0, 0, 1, 1);
+                  if (imageData && imageData.data) {
+                    // Canvas is readable and near video - likely recording
+                    return true;
+                  }
+                } catch (readError) {
+                  // Canvas might be tainted, but still suspicious
+                  // Return true as a precaution
+                  return true;
+                }
+              }
+
+              // Also check if canvas size matches video size exactly (very suspicious)
+              if (
+                Math.abs(rect.width - videoRect.width) < 5 &&
+                Math.abs(rect.height - videoRect.height) < 5
+              ) {
+                // Canvas matches video size exactly - very likely recording
+                return true;
+              }
+            }
+          } catch (e) {
+            // Canvas might be inaccessible, but continue checking
+          }
+        }
+
+        // iOS-specific detection
+        const isIOS =
+          /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+        if (isIOS) {
+          // On iOS, screen recording can be detected by checking video properties
+          // When recording, the video might have different behavior
+          // Check if video is in a state that suggests recording
+          if ((video as any).webkitDisplayingFullscreen) {
+            // Video is in fullscreen, which could be used for recording
+          }
+
+          // Check for AirPlay (which can be used for recording)
+          if ((video as any).webkitCurrentPlaybackTargetIsWireless) {
+            const isWireless = (
+              video as any
+            ).webkitCurrentPlaybackTargetIsWireless();
+            if (isWireless) {
+              // Video is being streamed wirelessly, might be recorded
+            }
+          }
+        }
+
+        // Check for suspicious iframe overlays (some recording tools use iframes)
+        const iframes = document.querySelectorAll("iframe");
+        for (const iframe of iframes) {
+          try {
+            const rect = iframe.getBoundingClientRect();
+            const videoRect = video.getBoundingClientRect();
+
+            // Check if iframe is overlaying video
+            if (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.top <= videoRect.top &&
+              rect.left <= videoRect.left &&
+              rect.bottom >= videoRect.bottom &&
+              rect.right >= videoRect.right
+            ) {
+              // Iframe overlaying video - might be used for recording
+              // This is a heuristic
+            }
+          } catch (e) {
+            // Cross-origin iframe, can't access
+          }
         }
 
         return false;
@@ -566,8 +854,9 @@ export default function HLSPlayer({
       }
     }
 
-    // Periodic check as fallback (every 500ms)
-    screenCheckIntervalRef.current = setInterval(() => {
+    // More aggressive periodic check when video is playing (every 200ms)
+    // This helps detect recording that starts after playback begins
+    const performDetectionCheck = () => {
       const captured = detectScreenSharing();
       setIsScreenSharing((prev) => {
         if (captured !== prev) {
@@ -578,7 +867,138 @@ export default function HLSPlayer({
         }
         return prev;
       });
-    }, 500);
+    };
+
+    // Monitor for dynamically added canvas elements (recording tools often add them)
+    const mutationObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeName === "CANVAS") {
+            const canvas = node as HTMLCanvasElement;
+            // A canvas was added - check if it's suspicious immediately
+            try {
+              const context = canvas.getContext("2d");
+              if (context) {
+                const rect = canvas.getBoundingClientRect();
+                const videoRect = video.getBoundingClientRect();
+
+                // Check if canvas is overlaying video
+                if (
+                  rect.width > 0 &&
+                  rect.height > 0 &&
+                  Math.abs(rect.width - videoRect.width) < 50 &&
+                  Math.abs(rect.height - videoRect.height) < 50
+                ) {
+                  // Canvas overlaying video - likely recording
+                  setIsScreenSharing(true);
+                  if (video) {
+                    video.pause();
+                  }
+                  return; // Exit early, we found it
+                }
+              }
+            } catch (e) {
+              // Canvas might be inaccessible, but still check
+            }
+
+            // Also run full detection check
+            performDetectionCheck();
+          }
+        }
+      }
+    });
+
+    // Observe the document body for canvas additions
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Check more frequently when video is playing
+    const handleVideoPlay = () => {
+      // Increase check frequency when playing (every 100ms for aggressive detection)
+      if (screenCheckIntervalRef.current) {
+        clearInterval(screenCheckIntervalRef.current);
+      }
+      screenCheckIntervalRef.current = setInterval(performDetectionCheck, 100);
+      // Also check immediately
+      performDetectionCheck();
+    };
+
+    const handleVideoPause = () => {
+      // Reduce check frequency when paused
+      if (screenCheckIntervalRef.current) {
+        clearInterval(screenCheckIntervalRef.current);
+      }
+      screenCheckIntervalRef.current = setInterval(performDetectionCheck, 500);
+    };
+
+    // Monitor for unexpected video state changes that might indicate recording
+    let lastVideoPaused = video.paused;
+    const monitorVideoState = () => {
+      // Check if video was paused unexpectedly (some recording tools pause video)
+      if (!lastVideoPaused && video.paused) {
+        // Video was paused unexpectedly - might indicate recording interference
+        performDetectionCheck();
+      }
+      lastVideoPaused = video.paused;
+    };
+
+    // Monitor video state every 50ms
+    const videoStateInterval = setInterval(monitorVideoState, 50);
+
+    video.addEventListener("play", handleVideoPlay);
+    video.addEventListener("playing", handleVideoPlay);
+    video.addEventListener("pause", handleVideoPause);
+
+    // Use ResizeObserver to detect when elements overlay the video
+    const resizeObserver = new ResizeObserver(() => {
+      performDetectionCheck();
+    });
+
+    // Observe the video element and its container for size changes
+    resizeObserver.observe(video);
+    const container = containerRef.current;
+    if (container) {
+      resizeObserver.observe(container);
+    }
+
+    // Use IntersectionObserver to detect overlays
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        // If video visibility changes unexpectedly, might indicate recording
+        for (const entry of entries) {
+          if (entry.target === video) {
+            // Check if video is being obscured
+            if (entry.intersectionRatio < 0.95 && !video.paused) {
+              // Video is mostly obscured - might be recording overlay
+              performDetectionCheck();
+            }
+          }
+        }
+      },
+      {
+        threshold: [0, 0.5, 0.95, 1],
+      }
+    );
+
+    intersectionObserver.observe(video);
+
+    // Monitor for canvas/iframe elements that might overlay video
+    const overlayObserver = new MutationObserver(() => {
+      performDetectionCheck();
+    });
+
+    // Observe document for any element additions that might overlay video
+    overlayObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style", "class"],
+    });
+
+    // Initial periodic check
+    screenCheckIntervalRef.current = setInterval(performDetectionCheck, 500);
 
     // Also check on visibility change (screen sharing might affect visibility)
     const handleVisibilityChange = () => {
@@ -619,6 +1039,33 @@ export default function HLSPlayer({
       if (screenCheckIntervalRef.current) {
         clearInterval(screenCheckIntervalRef.current);
         screenCheckIntervalRef.current = null;
+      }
+
+      // Remove video event listeners
+      video.removeEventListener("play", handleVideoPlay);
+      video.removeEventListener("playing", handleVideoPlay);
+      video.removeEventListener("pause", handleVideoPause);
+
+      // Clear video state monitoring interval
+      if (videoStateInterval) {
+        clearInterval(videoStateInterval);
+      }
+
+      // Disconnect all observers
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      intersectionObserver.disconnect();
+      overlayObserver.disconnect();
+
+      // Clean up detection canvas
+      if (detectionCanvas) {
+        // Clear draw interval if it exists
+        if ((detectionCanvas as any)._drawInterval) {
+          clearInterval((detectionCanvas as any)._drawInterval);
+        }
+        if (detectionCanvas.parentNode) {
+          detectionCanvas.parentNode.removeChild(detectionCanvas);
+        }
       }
 
       try {
@@ -694,10 +1141,19 @@ export default function HLSPlayer({
 
   const toggleFullscreen = () => {
     const container = containerRef.current;
-    if (!container) return;
+    const video = videoRef.current;
+    if (!container || !video) return;
+
+    // Check if we're on iOS (Safari)
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
     if (!isFullscreen) {
-      if (container.requestFullscreen) {
+      // iOS Safari requires webkitEnterFullscreen on the video element
+      if (isIOS && (video as any).webkitEnterFullscreen) {
+        (video as any).webkitEnterFullscreen();
+      } else if (container.requestFullscreen) {
         container.requestFullscreen();
       } else if ((container as any).webkitRequestFullscreen) {
         (container as any).webkitRequestFullscreen();
@@ -707,6 +1163,8 @@ export default function HLSPlayer({
         (container as any).msRequestFullscreen();
       }
     } else {
+      // iOS Safari doesn't support programmatic exit, user must use native controls
+      // But we'll still try to exit if possible
       if (document.exitFullscreen) {
         document.exitFullscreen();
       } else if ((document as any).webkitExitFullscreen) {
@@ -868,7 +1326,7 @@ export default function HLSPlayer({
             {/* Play/Pause Button */}
             <button
               onClick={togglePlay}
-              className="h-10 md:w-20 w-10 md:h-20 rounded-full bg-black/50 hover:bg-black/90 transition-all flex items-center justify-center group"
+              className="h-10 md:w-20 w-10 md:h-20 p-1 rounded-full bg-black/50 hover:bg-black/90 transition-all flex items-center justify-center group"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (

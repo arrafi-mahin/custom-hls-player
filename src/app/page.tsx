@@ -1,4 +1,4 @@
-import PlayerLoader from "./components/PlayerLoader";
+import PlayerLoader from "@/components/PlayerLoader";
 
 export default async function page() {
   const hlsUrl =
