@@ -78,30 +78,88 @@ export default function HLSPlayer({
     }
 
     if (Hls.isSupported()) {
-      hls = new Hls({
+      // Detect if user is on mobile network
+      const isMobileNetwork = (() => {
+        // Check if connection API is available
+        const connection = (navigator as any).connection || 
+                          (navigator as any).mozConnection || 
+                          (navigator as any).webkitConnection;
+        
+        if (connection) {
+          // Check if connection type indicates mobile (cellular)
+          const effectiveType = connection.effectiveType;
+          const type = connection.type;
+          
+          // If effectiveType is slow (2g, 3g, slow-4g) or type is cellular
+          if (effectiveType === '2g' || effectiveType === '3g' || effectiveType === 'slow-4g') {
+            return true;
+          }
+          if (type === 'cellular') {
+            return true;
+          }
+        }
+        
+        // Fallback: detect mobile device
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
+        
+        // If on mobile device, assume mobile network (conservative approach)
+        // User can still get WiFi benefits if connection API reports fast connection
+        return isMobileDevice && (!connection || !connection.effectiveType || 
+               connection.effectiveType === '2g' || connection.effectiveType === '3g' || 
+               connection.effectiveType === 'slow-4g');
+      })();
+
+      // Configure HLS.js based on network type
+      const hlsConfig: any = {
         enableWorker: true,
         enableSoftwareAES: true,
-        lowLatencyMode: false, // Disabled for more aggressive buffering
-        backBufferLength: 180, // Keep 3 minutes of back buffer
-        // ABR configuration to prefer higher quality
-        abrEwmaDefaultEstimate: 5000000, // Higher initial bandwidth estimate (5 Mbps)
-        abrBandWidthFactor: 0.95, // Use 95% of available bandwidth
-        abrBandWidthUpFactor: 0.7, // More aggressive about switching up
-        abrMaxWithRealBitrate: false, // Don't limit based on real bitrate
-        maxBufferLength: 120, // Buffer up to 2 minutes ahead
-        maxMaxBufferLength: 300, // Maximum buffer length of 5 minutes
-        maxBufferSize: 200 * 1000 * 1000, // 200 MB buffer size (increased from 60 MB)
+        lowLatencyMode: false,
         startLevel: -1, // Auto-select best level initially
-        // Enhanced configuration for encrypted requests
-        fragLoadingTimeOut: 20000, // 20 second timeout for encrypted fragments
-        manifestLoadingTimeOut: 10000, // 10 second timeout for manifest
-        fragLoadingMaxRetry: 4, // Retry encrypted fragments up to 4 times
-        manifestLoadingMaxRetry: 3, // Retry manifest up to 3 times
-        fragLoadingRetryDelay: 1000, // 1 second delay between retries
-        manifestLoadingRetryDelay: 500, // 500ms delay for manifest retries
         // xhrSetup for custom headers on video chunk requests
         xhrSetup: xhrSetup,
-      });
+      };
+
+      if (isMobileNetwork) {
+        // Mobile network configuration - more conservative settings
+        console.log('Detected mobile network - using conservative HLS settings');
+        hlsConfig.backBufferLength = 30; // Keep 30 seconds of back buffer (reduced for mobile)
+        hlsConfig.abrEwmaDefaultEstimate = 1000000; // Lower initial bandwidth estimate (1 Mbps)
+        hlsConfig.abrBandWidthFactor = 0.8; // Use 80% of available bandwidth (more conservative)
+        hlsConfig.abrBandWidthUpFactor = 0.5; // Less aggressive about switching up
+        hlsConfig.abrMaxWithRealBitrate = true; // Limit based on real bitrate
+        hlsConfig.maxBufferLength = 30; // Buffer up to 30 seconds ahead (reduced for mobile)
+        hlsConfig.maxMaxBufferLength = 60; // Maximum buffer length of 1 minute
+        hlsConfig.maxBufferSize = 30 * 1000 * 1000; // 30 MB buffer size (reduced for mobile)
+        // Longer timeouts for slower mobile connections
+        hlsConfig.fragLoadingTimeOut = 30000; // 30 second timeout for fragments
+        hlsConfig.manifestLoadingTimeOut = 15000; // 15 second timeout for manifest
+        hlsConfig.fragLoadingMaxRetry = 6; // More retries for mobile
+        hlsConfig.manifestLoadingMaxRetry = 5; // More retries for manifest
+        hlsConfig.fragLoadingRetryDelay = 2000; // 2 second delay between retries
+        hlsConfig.manifestLoadingRetryDelay = 1000; // 1 second delay for manifest retries
+      } else {
+        // WiFi/high-speed network configuration - aggressive settings
+        console.log('Detected WiFi/high-speed network - using aggressive HLS settings');
+        hlsConfig.backBufferLength = 180; // Keep 3 minutes of back buffer
+        hlsConfig.abrEwmaDefaultEstimate = 5000000; // Higher initial bandwidth estimate (5 Mbps)
+        hlsConfig.abrBandWidthFactor = 0.95; // Use 95% of available bandwidth
+        hlsConfig.abrBandWidthUpFactor = 0.7; // More aggressive about switching up
+        hlsConfig.abrMaxWithRealBitrate = false; // Don't limit based on real bitrate
+        hlsConfig.maxBufferLength = 120; // Buffer up to 2 minutes ahead
+        hlsConfig.maxMaxBufferLength = 300; // Maximum buffer length of 5 minutes
+        hlsConfig.maxBufferSize = 200 * 1000 * 1000; // 200 MB buffer size
+        // Standard timeouts for fast connections
+        hlsConfig.fragLoadingTimeOut = 20000; // 20 second timeout for encrypted fragments
+        hlsConfig.manifestLoadingTimeOut = 10000; // 10 second timeout for manifest
+        hlsConfig.fragLoadingMaxRetry = 4; // Retry encrypted fragments up to 4 times
+        hlsConfig.manifestLoadingMaxRetry = 3; // Retry manifest up to 3 times
+        hlsConfig.fragLoadingRetryDelay = 1000; // 1 second delay between retries
+        hlsConfig.manifestLoadingRetryDelay = 500; // 500ms delay for manifest retries
+      }
+
+      hls = new Hls(hlsConfig);
 
       hls.loadSource(src);
       hls.attachMedia(video);
@@ -110,11 +168,42 @@ export default function HLSPlayer({
         setIsLoading(false);
         setError(null);
 
-        // Set to highest quality level available and populate quality levels
+        // Set initial quality level based on network type
         if (hls && hls.levels && hls.levels.length > 0) {
-          const highestLevel = hls.levels.length - 1;
-          hls.currentLevel = highestLevel;
-          setCurrentQualityLevel(highestLevel);
+          let initialLevel: number;
+          
+          if (isMobileNetwork) {
+            // On mobile networks, start with a lower quality (middle or lower)
+            // This prevents initial loading failures on slow connections
+            const middleLevel = Math.floor(hls.levels.length / 2);
+            // Start with a level that's likely to work (around 360p-480p if available)
+            initialLevel = hls.levels.findIndex(
+              (level) => level.height && level.height <= 480
+            );
+            // If no 480p or lower found, use middle level
+            if (initialLevel === -1) {
+              initialLevel = Math.max(0, middleLevel - 1);
+            }
+            // Ensure we don't go below 0
+            initialLevel = Math.max(0, initialLevel);
+            
+            console.log(
+              `Mobile network detected - starting with lower quality level: ${initialLevel} (${
+                hls.levels[initialLevel].height
+              }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
+            );
+          } else {
+            // On WiFi, start with highest quality
+            initialLevel = hls.levels.length - 1;
+            console.log(
+              `WiFi/high-speed network - starting with highest quality level: ${initialLevel} (${
+                hls.levels[initialLevel].height
+              }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
+            );
+          }
+          
+          hls.currentLevel = initialLevel;
+          setCurrentQualityLevel(initialLevel);
 
           // Create quality levels array for dropdown (keep original indices)
           const levels = hls.levels.map((level, index) => ({
@@ -127,12 +216,6 @@ export default function HLSPlayer({
           // Sort by height descending for display, but keep original level indices
           const sortedLevels = [...levels].sort((a, b) => b.height - a.height);
           setQualityLevels(sortedLevels);
-
-          console.log(
-            `Set to highest quality level: ${highestLevel} (${
-              hls.levels[highestLevel].height
-            }p, ${Math.round(hls.levels[highestLevel].bitrate / 1000)}kbps)`
-          );
         }
       });
 
@@ -181,30 +264,39 @@ export default function HLSPlayer({
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.error("Fatal network error encountered, try to recover");
-              // Enhanced retry logic for encrypted requests
+              // Enhanced retry logic with longer delays for mobile networks
+              const retryDelay = isMobileNetwork ? 3000 : 1000; // Longer delay on mobile
+              const fragmentRetryDelay = isMobileNetwork ? 4000 : 2000;
+              
               if (
                 data.details === "manifestLoadError" ||
                 data.details === "manifestParsingError"
               ) {
-                // Manifest errors - retry with backoff
+                // Manifest errors - retry with backoff (longer on mobile)
+                console.log(`Retrying manifest load in ${retryDelay}ms (mobile: ${isMobileNetwork})`);
                 setTimeout(() => {
                   if (hls) {
                     hls.startLoad();
                   }
-                }, 1000);
+                }, retryDelay);
               } else if (
                 data.details === "fragLoadError" ||
                 data.details === "fragParsingError"
               ) {
-                // Fragment/chunk errors - retry loading
+                // Fragment/chunk errors - retry loading (longer delay on mobile)
+                console.log(`Retrying fragment load in ${fragmentRetryDelay}ms (mobile: ${isMobileNetwork})`);
                 setTimeout(() => {
                   if (hls) {
                     hls.startLoad();
                   }
-                }, 2000);
+                }, fragmentRetryDelay);
               } else {
                 // Other network errors - try to recover
-                hls?.startLoad();
+                setTimeout(() => {
+                  if (hls) {
+                    hls.startLoad();
+                  }
+                }, retryDelay);
               }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -213,12 +305,13 @@ export default function HLSPlayer({
                 hls?.recoverMediaError();
               } catch (recoverError) {
                 console.error("Media recovery failed:", recoverError);
-                // Try to reload if recovery fails
+                // Try to reload if recovery fails (longer delay on mobile)
+                const recoveryDelay = isMobileNetwork ? 3000 : 1000;
                 setTimeout(() => {
                   if (hls) {
                     hls.startLoad();
                   }
-                }, 1000);
+                }, recoveryDelay);
               }
               break;
             case Hls.ErrorTypes.KEY_SYSTEM_ERROR:
@@ -530,23 +623,9 @@ export default function HLSPlayer({
     if (isIOS) {
       const handleVideoBeginFullscreen = () => {
         setIsFullscreen(true);
-        // Try to lock orientation after entering fullscreen on iOS
-        setTimeout(() => {
-          const isMobileDevice = () => {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-              navigator.userAgent
-            );
-          };
-          if (isMobileDevice()) {
-            try {
-              if (screen.orientation && (screen.orientation as any).lock) {
-                (screen.orientation as any).lock("landscape");
-              }
-            } catch (error) {
-              // Orientation lock may not be available on iOS
-            }
-          }
-        }, 100);
+        // Don't lock orientation on iOS - let iOS handle rotation naturally
+        // iOS native fullscreen allows rotation automatically, and locking
+        // would prevent users from rotating their device
       };
       const handleVideoEndFullscreen = () => {
         setIsFullscreen(false);
@@ -1384,19 +1463,26 @@ export default function HLSPlayer({
     const video = videoRef.current;
     if (!container || !video) return;
 
+    // Check actual fullscreen state from DOM instead of React state
+    const isCurrentlyFullscreen = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+
     // Check if we're on iOS (Safari)
     const isIOS =
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-    if (!isFullscreen) {
+    if (!isCurrentlyFullscreen) {
+      // Enter fullscreen
       // iOS Safari requires webkitEnterFullscreen on the video element
       if (isIOS && (video as any).webkitEnterFullscreen) {
         (video as any).webkitEnterFullscreen();
-        // For iOS, try to lock orientation after a short delay
-        setTimeout(() => {
-          lockOrientationToLandscape();
-        }, 100);
+        // Don't lock orientation on iOS - let iOS handle rotation naturally
+        // iOS native fullscreen allows rotation automatically
       } else if (container.requestFullscreen) {
         const promise = container.requestFullscreen();
         if (promise) {
@@ -1426,13 +1512,15 @@ export default function HLSPlayer({
         }, 100);
       }
     } else {
+      // Exit fullscreen
       // Unlock orientation before exiting fullscreen
       unlockOrientation();
 
-      // iOS Safari doesn't support programmatic exit, user must use native controls
-      // But we'll still try to exit if possible
+      // Try all browser-specific exit methods
       if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.exitFullscreen().catch((err) => {
+          console.log("Exit fullscreen error:", err);
+        });
       } else if ((document as any).webkitExitFullscreen) {
         (document as any).webkitExitFullscreen();
       } else if ((document as any).mozCancelFullScreen) {
@@ -1475,7 +1563,7 @@ export default function HLSPlayer({
   if (!isMounted) {
     return (
       <div className="relative w-full max-w-6xl mx-auto rounded-sm overflow-hidden shadow-2xl aspect-video bg-black flex items-center justify-center">
-        <div className="text-white">Loading player...</div>
+        <div className="text-white animate-spin">Loading player...</div>
       </div>
     );
   }
