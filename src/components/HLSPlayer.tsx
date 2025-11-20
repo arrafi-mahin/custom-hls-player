@@ -48,28 +48,57 @@ export default function HLSPlayer({
   const screenCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const qualityMenuRef = useRef<HTMLDivElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Ensure component is mounted on client side
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
+    // Don't initialize until component is mounted (client-side only)
+    if (!isMounted) return;
+
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !src) return;
 
     let hls: Hls | null = null;
+
+    // Check if HLS.js is available (important for production builds)
+    if (typeof window === "undefined") {
+      // Server-side rendering - skip initialization
+      return;
+    }
+
+    if (!Hls) {
+      console.error("HLS.js library not loaded");
+      setError("Video player library failed to load");
+      setIsLoading(false);
+      return;
+    }
 
     if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         enableSoftwareAES: true,
-        lowLatencyMode: true,
-        backBufferLength: 90,
+        lowLatencyMode: false, // Disabled for more aggressive buffering
+        backBufferLength: 180, // Keep 3 minutes of back buffer
         // ABR configuration to prefer higher quality
         abrEwmaDefaultEstimate: 5000000, // Higher initial bandwidth estimate (5 Mbps)
         abrBandWidthFactor: 0.95, // Use 95% of available bandwidth
         abrBandWidthUpFactor: 0.7, // More aggressive about switching up
         abrMaxWithRealBitrate: false, // Don't limit based on real bitrate
-        maxBufferLength: 30, // Allow longer buffering for higher quality
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferLength: 120, // Buffer up to 2 minutes ahead
+        maxMaxBufferLength: 300, // Maximum buffer length of 5 minutes
+        maxBufferSize: 200 * 1000 * 1000, // 200 MB buffer size (increased from 60 MB)
         startLevel: -1, // Auto-select best level initially
+        // Enhanced configuration for encrypted requests
+        fragLoadingTimeOut: 20000, // 20 second timeout for encrypted fragments
+        manifestLoadingTimeOut: 10000, // 10 second timeout for manifest
+        fragLoadingMaxRetry: 4, // Retry encrypted fragments up to 4 times
+        manifestLoadingMaxRetry: 3, // Retry manifest up to 3 times
+        fragLoadingRetryDelay: 1000, // 1 second delay between retries
+        manifestLoadingRetryDelay: 500, // 500ms delay for manifest retries
         // xhrSetup for custom headers on video chunk requests
         xhrSetup: xhrSetup,
       });
@@ -140,22 +169,92 @@ export default function HLSPlayer({
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error("HLS Error:", {
+          type: data.type,
+          details: data.details,
+          fatal: data.fatal,
+          url: data.url,
+          response: data.response,
+        });
+
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.error("Fatal network error encountered, try to recover");
-              hls?.startLoad();
+              // Enhanced retry logic for encrypted requests
+              if (
+                data.details === "manifestLoadError" ||
+                data.details === "manifestParsingError"
+              ) {
+                // Manifest errors - retry with backoff
+                setTimeout(() => {
+                  if (hls) {
+                    hls.startLoad();
+                  }
+                }, 1000);
+              } else if (
+                data.details === "fragLoadError" ||
+                data.details === "fragParsingError"
+              ) {
+                // Fragment/chunk errors - retry loading
+                setTimeout(() => {
+                  if (hls) {
+                    hls.startLoad();
+                  }
+                }, 2000);
+              } else {
+                // Other network errors - try to recover
+                hls?.startLoad();
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.error("Fatal media error encountered, try to recover");
-              hls?.recoverMediaError();
+              try {
+                hls?.recoverMediaError();
+              } catch (recoverError) {
+                console.error("Media recovery failed:", recoverError);
+                // Try to reload if recovery fails
+                setTimeout(() => {
+                  if (hls) {
+                    hls.startLoad();
+                  }
+                }, 1000);
+              }
               break;
-            default:
-              console.error("Fatal error, cannot recover");
-              hls?.destroy();
-              setError("Failed to load video");
+            case Hls.ErrorTypes.KEY_SYSTEM_ERROR:
+              console.error(
+                "Key system error (encryption issue):",
+                data.details
+              );
+              setError("Encryption error: Failed to decrypt video");
               setIsLoading(false);
               break;
+            default:
+              console.error("Fatal error, cannot recover:", data.details);
+              // Show more specific error message
+              if (
+                data.details?.includes("network") ||
+                data.details?.includes("timeout")
+              ) {
+                setError(
+                  "Network error: Failed to load encrypted video chunks"
+                );
+              } else {
+                setError("Failed to load video");
+              }
+              setIsLoading(false);
+              break;
+          }
+        } else {
+          // Non-fatal errors - log for debugging encrypted requests
+          if (
+            data.details === "fragLoadError" ||
+            data.details === "fragParsingError"
+          ) {
+            console.warn(
+              "Non-fatal fragment error (encrypted chunk):",
+              data.url
+            );
           }
         }
       });
@@ -166,6 +265,10 @@ export default function HLSPlayer({
       video.addEventListener("loadedmetadata", () => {
         setIsLoading(false);
         setError(null);
+      });
+      video.addEventListener("error", () => {
+        setIsLoading(false);
+        setError("Failed to load video");
       });
     } else {
       setError("HLS is not supported in this browser");
@@ -307,7 +410,7 @@ export default function HLSPlayer({
         hls.destroy();
       }
     };
-  }, [src]);
+  }, [src, isMounted, xhrSetup]);
 
   // Show controls when paused
   useEffect(() => {
@@ -1367,6 +1470,15 @@ export default function HLSPlayer({
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  // Don't render video until mounted (prevents SSR hydration issues)
+  if (!isMounted) {
+    return (
+      <div className="relative w-full max-w-6xl mx-auto rounded-sm overflow-hidden shadow-2xl aspect-video bg-black flex items-center justify-center">
+        <div className="text-white">Loading player...</div>
+      </div>
+    );
+  }
 
   return (
     <div

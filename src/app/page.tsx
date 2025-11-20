@@ -1,15 +1,34 @@
 import PlayerLoader from "@/components/PlayerLoader";
 
+// Force dynamic rendering to prevent static generation issues
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function page() {
-  const hlsUrl =
-    "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.mp4/.m3u8";
-  const res = await fetch(`https://taxkoto.com/demo3/public/video-token/30`)
-    .then((res) => res.json())
-    .then((res) => res.playlist_url);
+  let playlistUrl = "";
+
+  try {
+    const res = await fetch(`https://taxkoto.com/demo3/public/video-token/30`, {
+      cache: "no-store", // Prevent caching in production
+      headers: {
+        "Cache-Control": "no-cache",
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch token: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    playlistUrl = data.playlist_url || "";
+  } catch (error) {
+    console.error("Error fetching video token:", error);
+    // Return empty string - PlayerLoader will handle it
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center ">
-      <PlayerLoader src={res} />
+      <PlayerLoader src={playlistUrl} />
     </div>
   );
 }

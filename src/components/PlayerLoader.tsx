@@ -21,9 +21,23 @@ export default function PlayerLoader({ src = "" }: Props) {
             title="BSC Preli Math Course"
             subtitle=""
             xhrSetup={(xhr, url) => {
-              // Add custom headers for video chunk requests
+              // Add custom headers for encrypted video chunk requests
               xhr.setRequestHeader("X-Player", "p2a");
               xhr.setRequestHeader("X-Sicret", "p2a-101-dev-by-fiz");
+
+              // Enhanced settings for encrypted requests
+              xhr.timeout = 30000; // 30 second timeout for encrypted requests
+              xhr.withCredentials = false; // Adjust if CORS requires credentials
+
+              // Handle timeout for encrypted requests
+              xhr.ontimeout = () => {
+                console.warn("Request timeout for encrypted chunk:", url);
+              };
+
+              // Handle errors for encrypted requests
+              xhr.onerror = () => {
+                console.error("Network error loading encrypted chunk:", url);
+              };
             }}
           />
         )}
