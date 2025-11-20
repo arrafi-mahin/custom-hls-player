@@ -44,8 +44,6 @@ export default function HLSPlayer({
   const [currentQualityLevel, setCurrentQualityLevel] = useState<number>(-1);
   const [isManualQuality, setIsManualQuality] = useState(false);
   const isManualQualityRef = useRef(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const screenCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const qualityMenuRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -115,49 +113,52 @@ export default function HLSPlayer({
       const hlsConfig: any = {
         enableWorker: true,
         enableSoftwareAES: true,
-        lowLatencyMode: false,
-        startLevel: -1, // Auto-select best level initially
+        debug: false,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxBufferSize: 60 * 1000 * 1000,
         // xhrSetup for custom headers on video chunk requests
         xhrSetup: xhrSetup,
       };
 
-      if (isMobileNetwork) {
-        // Mobile network configuration - more conservative settings
-        console.log('Detected mobile network - using conservative HLS settings');
-        hlsConfig.backBufferLength = 30; // Keep 30 seconds of back buffer (reduced for mobile)
-        hlsConfig.abrEwmaDefaultEstimate = 1000000; // Lower initial bandwidth estimate (1 Mbps)
-        hlsConfig.abrBandWidthFactor = 0.8; // Use 80% of available bandwidth (more conservative)
-        hlsConfig.abrBandWidthUpFactor = 0.5; // Less aggressive about switching up
-        hlsConfig.abrMaxWithRealBitrate = true; // Limit based on real bitrate
-        hlsConfig.maxBufferLength = 30; // Buffer up to 30 seconds ahead (reduced for mobile)
-        hlsConfig.maxMaxBufferLength = 60; // Maximum buffer length of 1 minute
-        hlsConfig.maxBufferSize = 30 * 1000 * 1000; // 30 MB buffer size (reduced for mobile)
-        // Longer timeouts for slower mobile connections
-        hlsConfig.fragLoadingTimeOut = 30000; // 30 second timeout for fragments
-        hlsConfig.manifestLoadingTimeOut = 15000; // 15 second timeout for manifest
-        hlsConfig.fragLoadingMaxRetry = 6; // More retries for mobile
-        hlsConfig.manifestLoadingMaxRetry = 5; // More retries for manifest
-        hlsConfig.fragLoadingRetryDelay = 2000; // 2 second delay between retries
-        hlsConfig.manifestLoadingRetryDelay = 1000; // 1 second delay for manifest retries
-      } else {
-        // WiFi/high-speed network configuration - aggressive settings
-        console.log('Detected WiFi/high-speed network - using aggressive HLS settings');
-        hlsConfig.backBufferLength = 180; // Keep 3 minutes of back buffer
-        hlsConfig.abrEwmaDefaultEstimate = 5000000; // Higher initial bandwidth estimate (5 Mbps)
-        hlsConfig.abrBandWidthFactor = 0.95; // Use 95% of available bandwidth
-        hlsConfig.abrBandWidthUpFactor = 0.7; // More aggressive about switching up
-        hlsConfig.abrMaxWithRealBitrate = false; // Don't limit based on real bitrate
-        hlsConfig.maxBufferLength = 120; // Buffer up to 2 minutes ahead
-        hlsConfig.maxMaxBufferLength = 300; // Maximum buffer length of 5 minutes
-        hlsConfig.maxBufferSize = 200 * 1000 * 1000; // 200 MB buffer size
-        // Standard timeouts for fast connections
-        hlsConfig.fragLoadingTimeOut = 20000; // 20 second timeout for encrypted fragments
-        hlsConfig.manifestLoadingTimeOut = 10000; // 10 second timeout for manifest
-        hlsConfig.fragLoadingMaxRetry = 4; // Retry encrypted fragments up to 4 times
-        hlsConfig.manifestLoadingMaxRetry = 3; // Retry manifest up to 3 times
-        hlsConfig.fragLoadingRetryDelay = 1000; // 1 second delay between retries
-        hlsConfig.manifestLoadingRetryDelay = 500; // 500ms delay for manifest retries
-      }
+      // if (isMobileNetwork) {
+      //   // Mobile network configuration - more conservative settings
+      //   console.log('Detected mobile network - using conservative HLS settings');
+      //   hlsConfig.backBufferLength = 30; // Keep 30 seconds of back buffer (reduced for mobile)
+      //   hlsConfig.abrEwmaDefaultEstimate = 1000000; // Lower initial bandwidth estimate (1 Mbps)
+      //   hlsConfig.abrBandWidthFactor = 0.8; // Use 80% of available bandwidth (more conservative)
+      //   hlsConfig.abrBandWidthUpFactor = 0.5; // Less aggressive about switching up
+      //   hlsConfig.abrMaxWithRealBitrate = true; // Limit based on real bitrate
+      //   hlsConfig.maxBufferLength = 30; // Buffer up to 30 seconds ahead (reduced for mobile)
+      //   hlsConfig.maxMaxBufferLength = 60; // Maximum buffer length of 1 minute
+      //   hlsConfig.maxBufferSize = 30 * 1000 * 1000; // 30 MB buffer size (reduced for mobile)
+      //   // Longer timeouts for slower mobile connections
+      //   hlsConfig.fragLoadingTimeOut = 30000; // 30 second timeout for fragments
+      //   hlsConfig.manifestLoadingTimeOut = 15000; // 15 second timeout for manifest
+      //   hlsConfig.fragLoadingMaxRetry = 6; // More retries for mobile
+      //   hlsConfig.manifestLoadingMaxRetry = 5; // More retries for manifest
+      //   hlsConfig.fragLoadingRetryDelay = 2000; // 2 second delay between retries
+      //   hlsConfig.manifestLoadingRetryDelay = 1000; // 1 second delay for manifest retries
+      // } else {
+      //   // WiFi/high-speed network configuration - aggressive settings
+      //   console.log('Detected WiFi/high-speed network - using aggressive HLS settings');
+      //   hlsConfig.backBufferLength = 180; // Keep 3 minutes of back buffer
+      //   hlsConfig.abrEwmaDefaultEstimate = 5000000; // Higher initial bandwidth estimate (5 Mbps)
+      //   hlsConfig.abrBandWidthFactor = 0.95; // Use 95% of available bandwidth
+      //   hlsConfig.abrBandWidthUpFactor = 0.7; // More aggressive about switching up
+      //   hlsConfig.abrMaxWithRealBitrate = false; // Don't limit based on real bitrate
+      //   hlsConfig.maxBufferLength = 120; // Buffer up to 2 minutes ahead
+      //   hlsConfig.maxMaxBufferLength = 300; // Maximum buffer length of 5 minutes
+      //   hlsConfig.maxBufferSize = 200 * 1000 * 1000; // 200 MB buffer size
+      //   // Standard timeouts for fast connections
+      //   hlsConfig.fragLoadingTimeOut = 20000; // 20 second timeout for encrypted fragments
+      //   hlsConfig.manifestLoadingTimeOut = 10000; // 10 second timeout for manifest
+      //   hlsConfig.fragLoadingMaxRetry = 4; // Retry encrypted fragments up to 4 times
+      //   hlsConfig.manifestLoadingMaxRetry = 3; // Retry manifest up to 3 times
+      //   hlsConfig.fragLoadingRetryDelay = 1000; // 1 second delay between retries
+      //   hlsConfig.manifestLoadingRetryDelay = 500; // 500ms delay for manifest retries
+      // }
 
       hls = new Hls(hlsConfig);
 
@@ -811,520 +812,6 @@ export default function HLSPlayer({
     };
   }, [isFullscreen]);
 
-  // Screen sharing/recording detection
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    // Create a hidden canvas to detect frame capture attempts
-    // Screen recording tools often try to capture frames from video elements
-    const detectionCanvas: HTMLCanvasElement | null = (() => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 360;
-        canvas.style.display = "none";
-        canvas.style.position = "absolute";
-        canvas.style.top = "-9999px";
-        canvas.style.left = "-9999px";
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-
-        // Monitor for attempts to read from canvas (indicates recording)
-        if (context) {
-          let readCount = 0;
-          // Override getImageData to detect reads
-          const originalGetImageData = context.getImageData.bind(context);
-          context.getImageData = function (
-            sx: number,
-            sy: number,
-            sw: number,
-            sh: number
-          ) {
-            readCount++;
-            // If someone is reading from our detection canvas frequently, they might be recording
-            if (readCount > 2) {
-              // Multiple reads detected - likely recording
-              setIsScreenSharing(true);
-              if (video) {
-                video.pause();
-              }
-            }
-            return originalGetImageData(sx, sy, sw, sh);
-          };
-
-          // Periodically draw video to canvas to detect if it's being captured
-          const drawVideoToCanvas = () => {
-            if (video && !video.paused && video.readyState >= 2) {
-              try {
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-              } catch (e) {
-                // Video might not be ready
-              }
-            }
-          };
-
-          // Draw video frames to canvas periodically
-          const drawInterval = setInterval(drawVideoToCanvas, 100);
-
-          // Store interval for cleanup
-          (canvas as any)._drawInterval = drawInterval;
-        }
-        return canvas;
-      } catch (e) {
-        // Canvas creation failed
-        return null;
-      }
-    })();
-
-    // Enhanced detection for screen sharing and recording
-    const detectScreenSharing = () => {
-      try {
-        // Check if document is being captured (Chrome/Edge)
-        if ((document as any).captured !== undefined) {
-          if ((document as any).captured) return true;
-        }
-
-        // Check for Firefox
-        if ((document as any).mozCaptured !== undefined) {
-          if ((document as any).mozCaptured) return true;
-        }
-
-        // Check for Safari/WebKit
-        if ((window as any).captured !== undefined) {
-          if ((window as any).captured) return true;
-        }
-
-        // Check for active MediaStream tracks globally (screen recording often creates these)
-        // Note: enumerateDevices is async and requires permission, so we check other ways
-
-        // More aggressive: Check if video element has been captured
-        // Screen recording tools often call captureStream() on video elements
-        try {
-          const videoWithCapture = video as any;
-          // Try to detect if captureStream was called by checking for active tracks
-          // This is a heuristic - if we can detect active capture streams
-          if (videoWithCapture.captureStream) {
-            // Some browsers expose active capture streams
-            // We'll check this more aggressively below
-          }
-        } catch (e) {
-          // Ignore
-        }
-
-        // Check for MediaStream tracks on the video element (indicates screen sharing/recording)
-        if (video.srcObject) {
-          const mediaStream = video.srcObject as MediaStream;
-          if (mediaStream instanceof MediaStream) {
-            const videoTracks = mediaStream.getVideoTracks();
-            for (const track of videoTracks) {
-              // Check if it's a screen capture track
-              if (
-                track.label &&
-                (track.label.includes("screen") ||
-                  track.label.includes("window") ||
-                  track.label.includes("display") ||
-                  track.label.includes("monitor"))
-              ) {
-                return true;
-              }
-            }
-          }
-        }
-
-        // Detect if video element is being captured via captureStream API
-        // This happens when screen recording software captures the video
-        try {
-          const videoWithCapture = video as any;
-          if (
-            videoWithCapture.captureStream &&
-            typeof videoWithCapture.captureStream === "function"
-          ) {
-            // Try to detect if captureStream has been called and is active
-            // We can't directly detect this, but we can monitor for suspicious patterns
-          }
-        } catch (e) {
-          // captureStream might not be available or throw errors
-        }
-
-        // More aggressive detection: Monitor video element for capture attempts
-        // Screen recording tools often access video properties or try to capture frames
-        try {
-          // Check if video is being accessed in suspicious ways
-          // This is done by monitoring property access (if possible)
-          // Note: Direct property access monitoring is limited, but we can check state
-          // Check if video has been paused unexpectedly (some recording tools pause video)
-          // This is handled elsewhere, but we note it here
-        } catch (e) {
-          // Monitoring might fail
-        }
-
-        // Check for canvas elements that might be capturing video frames
-        // Screen recording tools often use canvas to capture frames
-        const canvasElements = document.querySelectorAll("canvas");
-        for (const canvas of canvasElements) {
-          try {
-            // Skip our own detection canvas
-            if (canvas === detectionCanvas) continue;
-
-            const context = canvas.getContext("2d");
-            if (context) {
-              const rect = canvas.getBoundingClientRect();
-              const videoRect = video.getBoundingClientRect();
-
-              // More lenient detection - check if canvas is near video
-              const isOverlaying =
-                rect.width > 0 &&
-                rect.height > 0 &&
-                Math.abs(rect.width - videoRect.width) < 100 &&
-                Math.abs(rect.height - videoRect.height) < 100 &&
-                Math.abs(rect.top - videoRect.top) < 100 &&
-                Math.abs(rect.left - videoRect.left) < 100;
-
-              if (isOverlaying) {
-                // Canvas near video - likely being used for recording
-                // Try to detect if canvas is actively capturing video frames
-                try {
-                  // If we can read from the canvas and it's near video,
-                  // it's likely being used for recording
-                  const imageData = context.getImageData(0, 0, 1, 1);
-                  if (imageData && imageData.data) {
-                    // Canvas is readable and near video - likely recording
-                    return true;
-                  }
-                } catch (readError) {
-                  // Canvas might be tainted, but still suspicious
-                  // Return true as a precaution
-                  return true;
-                }
-              }
-
-              // Also check if canvas size matches video size exactly (very suspicious)
-              if (
-                Math.abs(rect.width - videoRect.width) < 5 &&
-                Math.abs(rect.height - videoRect.height) < 5
-              ) {
-                // Canvas matches video size exactly - very likely recording
-                return true;
-              }
-            }
-          } catch (e) {
-            // Canvas might be inaccessible, but continue checking
-          }
-        }
-
-        // iOS-specific detection
-        const isIOS =
-          /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-        if (isIOS) {
-          // On iOS, screen recording can be detected by checking video properties
-          // When recording, the video might have different behavior
-          // Check if video is in a state that suggests recording
-          if ((video as any).webkitDisplayingFullscreen) {
-            // Video is in fullscreen, which could be used for recording
-          }
-
-          // Check for AirPlay (which can be used for recording)
-          if ((video as any).webkitCurrentPlaybackTargetIsWireless) {
-            const isWireless = (
-              video as any
-            ).webkitCurrentPlaybackTargetIsWireless();
-            if (isWireless) {
-              // Video is being streamed wirelessly, might be recorded
-            }
-          }
-        }
-
-        // Check for suspicious iframe overlays (some recording tools use iframes)
-        const iframes = document.querySelectorAll("iframe");
-        for (const iframe of iframes) {
-          try {
-            const rect = iframe.getBoundingClientRect();
-            const videoRect = video.getBoundingClientRect();
-
-            // Check if iframe is overlaying video
-            if (
-              rect.width > 0 &&
-              rect.height > 0 &&
-              rect.top <= videoRect.top &&
-              rect.left <= videoRect.left &&
-              rect.bottom >= videoRect.bottom &&
-              rect.right >= videoRect.right
-            ) {
-              // Iframe overlaying video - might be used for recording
-              // This is a heuristic
-            }
-          } catch (e) {
-            // Cross-origin iframe, can't access
-          }
-        }
-
-        return false;
-      } catch (err) {
-        return false;
-      }
-    };
-
-    // Listen for capturedchange event (if supported)
-    const handleCapturedChange = () => {
-      const captured = detectScreenSharing();
-      setIsScreenSharing(captured);
-
-      if (captured && video) {
-        video.pause();
-      }
-    };
-
-    // Check immediately
-    const initialCheck = detectScreenSharing();
-    setIsScreenSharing(initialCheck);
-    if (initialCheck && video) {
-      video.pause();
-    }
-
-    // Set up event listeners for capture detection
-    if ((document as any).addEventListener) {
-      // Try to listen for capturedchange event (Chrome/Edge)
-      try {
-        (document as any).addEventListener(
-          "capturedchange",
-          handleCapturedChange
-        );
-      } catch (e) {
-        // Event not supported
-      }
-    }
-
-    // More aggressive periodic check when video is playing (every 200ms)
-    // This helps detect recording that starts after playback begins
-    const performDetectionCheck = () => {
-      const captured = detectScreenSharing();
-      setIsScreenSharing((prev) => {
-        if (captured !== prev) {
-          if (captured && video) {
-            video.pause();
-          }
-          return captured;
-        }
-        return prev;
-      });
-    };
-
-    // Monitor for dynamically added canvas elements (recording tools often add them)
-    const mutationObserver = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeName === "CANVAS") {
-            const canvas = node as HTMLCanvasElement;
-            // A canvas was added - check if it's suspicious immediately
-            try {
-              const context = canvas.getContext("2d");
-              if (context) {
-                const rect = canvas.getBoundingClientRect();
-                const videoRect = video.getBoundingClientRect();
-
-                // Check if canvas is overlaying video
-                if (
-                  rect.width > 0 &&
-                  rect.height > 0 &&
-                  Math.abs(rect.width - videoRect.width) < 50 &&
-                  Math.abs(rect.height - videoRect.height) < 50
-                ) {
-                  // Canvas overlaying video - likely recording
-                  setIsScreenSharing(true);
-                  if (video) {
-                    video.pause();
-                  }
-                  return; // Exit early, we found it
-                }
-              }
-            } catch (e) {
-              // Canvas might be inaccessible, but still check
-            }
-
-            // Also run full detection check
-            performDetectionCheck();
-          }
-        }
-      }
-    });
-
-    // Observe the document body for canvas additions
-    mutationObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-
-    // Check more frequently when video is playing
-    const handleVideoPlay = () => {
-      // Increase check frequency when playing (every 100ms for aggressive detection)
-      if (screenCheckIntervalRef.current) {
-        clearInterval(screenCheckIntervalRef.current);
-      }
-      screenCheckIntervalRef.current = setInterval(performDetectionCheck, 100);
-      // Also check immediately
-      performDetectionCheck();
-    };
-
-    const handleVideoPause = () => {
-      // Reduce check frequency when paused
-      if (screenCheckIntervalRef.current) {
-        clearInterval(screenCheckIntervalRef.current);
-      }
-      screenCheckIntervalRef.current = setInterval(performDetectionCheck, 500);
-    };
-
-    // Monitor for unexpected video state changes that might indicate recording
-    let lastVideoPaused = video.paused;
-    const monitorVideoState = () => {
-      // Check if video was paused unexpectedly (some recording tools pause video)
-      if (!lastVideoPaused && video.paused) {
-        // Video was paused unexpectedly - might indicate recording interference
-        performDetectionCheck();
-      }
-      lastVideoPaused = video.paused;
-    };
-
-    // Monitor video state every 50ms
-    const videoStateInterval = setInterval(monitorVideoState, 50);
-
-    video.addEventListener("play", handleVideoPlay);
-    video.addEventListener("playing", handleVideoPlay);
-    video.addEventListener("pause", handleVideoPause);
-
-    // Use ResizeObserver to detect when elements overlay the video
-    const resizeObserver = new ResizeObserver(() => {
-      performDetectionCheck();
-    });
-
-    // Observe the video element and its container for size changes
-    resizeObserver.observe(video);
-    const container = containerRef.current;
-    if (container) {
-      resizeObserver.observe(container);
-    }
-
-    // Use IntersectionObserver to detect overlays
-    const intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        // If video visibility changes unexpectedly, might indicate recording
-        for (const entry of entries) {
-          if (entry.target === video) {
-            // Check if video is being obscured
-            if (entry.intersectionRatio < 0.95 && !video.paused) {
-              // Video is mostly obscured - might be recording overlay
-              performDetectionCheck();
-            }
-          }
-        }
-      },
-      {
-        threshold: [0, 0.5, 0.95, 1],
-      }
-    );
-
-    intersectionObserver.observe(video);
-
-    // Monitor for canvas/iframe elements that might overlay video
-    const overlayObserver = new MutationObserver(() => {
-      performDetectionCheck();
-    });
-
-    // Observe document for any element additions that might overlay video
-    overlayObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["style", "class"],
-    });
-
-    // Initial periodic check
-    screenCheckIntervalRef.current = setInterval(performDetectionCheck, 500);
-
-    // Also check on visibility change (screen sharing might affect visibility)
-    const handleVisibilityChange = () => {
-      const captured = detectScreenSharing();
-      setIsScreenSharing((prev) => {
-        if (captured !== prev) {
-          if (captured && video) {
-            video.pause();
-          }
-          return captured;
-        }
-        return prev;
-      });
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Monitor for focus changes (screen sharing might cause focus loss)
-    const handleFocusChange = () => {
-      setTimeout(() => {
-        const captured = detectScreenSharing();
-        setIsScreenSharing((prev) => {
-          if (captured !== prev) {
-            if (captured && video) {
-              video.pause();
-            }
-            return captured;
-          }
-          return prev;
-        });
-      }, 100);
-    };
-
-    window.addEventListener("blur", handleFocusChange);
-    window.addEventListener("focus", handleFocusChange);
-
-    return () => {
-      if (screenCheckIntervalRef.current) {
-        clearInterval(screenCheckIntervalRef.current);
-        screenCheckIntervalRef.current = null;
-      }
-
-      // Remove video event listeners
-      video.removeEventListener("play", handleVideoPlay);
-      video.removeEventListener("playing", handleVideoPlay);
-      video.removeEventListener("pause", handleVideoPause);
-
-      // Clear video state monitoring interval
-      if (videoStateInterval) {
-        clearInterval(videoStateInterval);
-      }
-
-      // Disconnect all observers
-      mutationObserver.disconnect();
-      resizeObserver.disconnect();
-      intersectionObserver.disconnect();
-      overlayObserver.disconnect();
-
-      // Clean up detection canvas
-      if (detectionCanvas) {
-        // Clear draw interval if it exists
-        if ((detectionCanvas as any)._drawInterval) {
-          clearInterval((detectionCanvas as any)._drawInterval);
-        }
-        if (detectionCanvas.parentNode) {
-          detectionCanvas.parentNode.removeChild(detectionCanvas);
-        }
-      }
-
-      try {
-        (document as any).removeEventListener(
-          "capturedchange",
-          handleCapturedChange
-        );
-      } catch (e) {
-        // Event not supported
-      }
-
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleFocusChange);
-      window.removeEventListener("focus", handleFocusChange);
-    };
-  }, []);
-
   // Close quality menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1348,11 +835,6 @@ export default function HLSPlayer({
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
-
-    // Prevent playing if screen sharing is detected
-    if (isScreenSharing) {
-      return;
-    }
 
     if (isPlaying) {
       video.pause();
@@ -1563,7 +1045,7 @@ export default function HLSPlayer({
   if (!isMounted) {
     return (
       <div className="relative w-full max-w-6xl mx-auto rounded-sm overflow-hidden shadow-2xl aspect-video bg-black flex items-center justify-center">
-        <div className="text-white animate-spin">Loading player...</div>
+        <div className="text-white">Loading player...</div>
       </div>
     );
   }
@@ -1584,38 +1066,6 @@ export default function HLSPlayer({
           <div className="text-red-500 text-center p-4">
             <p className="font-semibold">Error</p>
             <p>{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Screen Sharing/Recording Detection Overlay */}
-      {isScreenSharing && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
-          <div className="text-center p-8">
-            <div className="mb-4">
-              <svg
-                className="w-16 h-16 mx-auto text-white/80"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">
-              Screen Sharing/Recording Detected
-            </h2>
-            <p className="text-lg text-white/80">
-              Recording or sharing your screen is not allowed.
-            </p>
-            <p className="text-sm text-white/60 mt-4">
-              Please stop screen sharing or recording to continue watching.
-            </p>
           </div>
         </div>
       )}
