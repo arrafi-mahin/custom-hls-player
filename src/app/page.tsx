@@ -8,7 +8,7 @@ export default async function page() {
     .then((res) => res.playlist_url);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-zinc-900">
+    <div className="flex min-h-screen items-center justify-center ">
       <PlayerLoader src={res} />
     </div>
   );

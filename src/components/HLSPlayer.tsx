@@ -380,9 +380,13 @@ export default function HLSPlayer({
 
     // Helper function to detect mobile devices
     const isMobileDevice = () => {
-      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      ) || (window.innerWidth <= 768 && window.matchMedia("(orientation: portrait)").matches);
+      return (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        ) ||
+        (window.innerWidth <= 768 &&
+          window.matchMedia("(orientation: portrait)").matches)
+      );
     };
 
     // Unlock orientation helper
@@ -1217,9 +1221,13 @@ export default function HLSPlayer({
 
   // Helper function to detect mobile devices
   const isMobileDevice = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    ) || (window.innerWidth <= 768 && window.matchMedia("(orientation: portrait)").matches);
+    return (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      ) ||
+      (window.innerWidth <= 768 &&
+        window.matchMedia("(orientation: portrait)").matches)
+    );
   };
 
   // Lock orientation to landscape
@@ -1446,9 +1454,11 @@ export default function HLSPlayer({
 
       {/* Title and Subtitle */}
       {(title || subtitle) && (
-        <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}>
+        <div
+          className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${
+            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
           {/* Black gradient background */}
           <div className="absolute pointer-events-none" />
           <div className="relative p-4">
@@ -1480,20 +1490,73 @@ export default function HLSPlayer({
               className="w-8 md:w-14 h-8 md:h-14 p-1 rounded-full transition-all flex items-center justify-center group"
               aria-label="Skip backward 10 seconds"
             >
-              <svg className="h-full w-full text-white" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" stroke-width="3" stroke="#ffff" fill="none"><polyline points="9.57 15.41 12.17 24.05 20.81 21.44" stroke-linecap="round"></polyline><path d="M26.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" stroke-linecap="round"></path><rect x="32.19" y="22.52" width="11.41" height="18.89" rx="5.7"></rect><path d="M12.14,23.94a21.91,21.91,0,1,1-.91,13.25" stroke-linecap="round"></path></svg>
+              <svg
+                className="h-full w-full text-white"
+                viewBox="0 0 64 64"
+                xmlns="http://www.w3.org/2000/svg"
+                strokeWidth="3"
+                stroke="#ffff"
+                fill="none"
+              >
+                <polyline
+                  points="9.57 15.41 12.17 24.05 20.81 21.44"
+                  strokeLinecap="round"
+                ></polyline>
+                <path
+                  d="M26.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78"
+                  strokeLinecap="round"
+                ></path>
+                <rect
+                  x="32.19"
+                  y="22.52"
+                  width="11.41"
+                  height="18.89"
+                  rx="5.7"
+                ></rect>
+                <path
+                  d="M12.14,23.94a21.91,21.91,0,1,1-.91,13.25"
+                  strokeLinecap="round"
+                ></path>
+              </svg>
             </button>
 
             {/* Play/Pause Button */}
             <button
               onClick={togglePlay}
-              className="h-10 md:w-20 w-10 md:h-20 p-1 rounded-full transition-all flex items-center justify-center group"
+              className="h-12 md:w-24 w-12 md:h-24 p-1 rounded-full transition-all flex items-center justify-center group cursor-pointer"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
-                <svg className="w-full h-full " viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg" ><path _ngcontent-serverapp-c107="" d="M10.734 19.11V4.89C10.734 3.54 10.164 3 8.72398 3H5.09398C3.65398 3 3.08398 3.54 3.08398 4.89V19.11C3.08398 20.46 3.65398 21 5.09398 21H8.72398C10.164 21 10.734 20.46 10.734 19.11Z" fill="#F3F4F6"></path><path _ngcontent-serverapp-c107="" d="M21.084 19.11V4.89C21.084 3.54 20.514 3 19.074 3H15.444C14.014 3 13.434 3.54 13.434 4.89V19.11C13.434 20.46 14.004 21 15.444 21H19.074C20.514 21 21.084 20.46 21.084 19.11Z" fill="#F3F4F6"></path></svg>
-        
+                <svg
+                  className="w-full h-full "
+                  viewBox="0 0 25 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    _ngcontent-serverapp-c107=""
+                    d="M10.734 19.11V4.89C10.734 3.54 10.164 3 8.72398 3H5.09398C3.65398 3 3.08398 3.54 3.08398 4.89V19.11C3.08398 20.46 3.65398 21 5.09398 21H8.72398C10.164 21 10.734 20.46 10.734 19.11Z"
+                    fill="#F3F4F6"
+                  ></path>
+                  <path
+                    _ngcontent-serverapp-c107=""
+                    d="M21.084 19.11V4.89C21.084 3.54 20.514 3 19.074 3H15.444C14.014 3 13.434 3.54 13.434 4.89V19.11C13.434 20.46 14.004 21 15.444 21H19.074C20.514 21 21.084 20.46 21.084 19.11Z"
+                    fill="#F3F4F6"
+                  ></path>
+                </svg>
               ) : (
-                <svg className="w-full h-full ng-star-inserted" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg" ><path _ngcontent-serverapp-c107="" d="M26.8389 40.0598L26.8389 109.511C26.8389 123.735 42.2966 132.661 54.6337 125.549L84.7509 108.204L114.868 90.7873C127.205 83.6753 127.205 65.8953 114.868 58.7833L84.7509 41.3661L54.6337 24.0216C42.2966 16.9096 26.8389 25.7633 26.8389 40.0598Z" fill="#F3F4F6"></path></svg>
+                <svg
+                  className="w-full h-full ng-star-inserted"
+                  viewBox="0 0 150 150"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    _ngcontent-serverapp-c107=""
+                    d="M26.8389 40.0598L26.8389 109.511C26.8389 123.735 42.2966 132.661 54.6337 125.549L84.7509 108.204L114.868 90.7873C127.205 83.6753 127.205 65.8953 114.868 58.7833L84.7509 41.3661L54.6337 24.0216C42.2966 16.9096 26.8389 25.7633 26.8389 40.0598Z"
+                    fill="#F3F4F6"
+                  ></path>
+                </svg>
               )}
             </button>
 
@@ -1503,7 +1566,34 @@ export default function HLSPlayer({
               className="w-8 md:w-14 h-8 md:h-14 p-1 rounded-full transition-all flex items-center justify-center group"
               aria-label="Skip forward 10 seconds"
             >
-              <svg className="h-full w-full text-white" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" stroke-width="3" stroke="#ffff" fill="none"><path d="M23.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78" stroke-linecap="round"></path><rect x="29.19" y="22.52" width="11.41" height="18.89" rx="5.7"></rect><polyline points="54.43 15.41 51.83 24.05 43.19 21.44" stroke-linecap="round"></polyline><path d="M51.86,23.94a21.91,21.91,0,1,0,.91,13.25" stroke-linecap="round"></path></svg>
+              <svg
+                className="h-full w-full text-white"
+                viewBox="0 0 64 64"
+                xmlns="http://www.w3.org/2000/svg"
+                strokeWidth="3"
+                stroke="#ffff"
+                fill="none"
+              >
+                <path
+                  d="M23.93,41.41V23a.09.09,0,0,0-.16-.07s-2.58,3.69-4.17,4.78"
+                  strokeLinecap="round"
+                ></path>
+                <rect
+                  x="29.19"
+                  y="22.52"
+                  width="11.41"
+                  height="18.89"
+                  rx="5.7"
+                ></rect>
+                <polyline
+                  points="54.43 15.41 51.83 24.05 43.19 21.44"
+                  strokeLinecap="round"
+                ></polyline>
+                <path
+                  d="M51.86,23.94a21.91,21.91,0,1,0,.91,13.25"
+                  strokeLinecap="round"
+                ></path>
+              </svg>
             </button>
           </div>
         </div>
@@ -1674,7 +1764,7 @@ export default function HLSPlayer({
                         } as any);
                         setShowQualityMenu(false);
                       }}
-                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition-colors flex items-center justify-between"
+                      className="w-full px-4 py-2 text-left text-xs md:text-sm text-white hover:bg-white/10 transition-colors flex items-center justify-between"
                     >
                       <span>Auto</span>
                       {!isManualQuality && (
@@ -1706,7 +1796,7 @@ export default function HLSPlayer({
                             } as any);
                             setShowQualityMenu(false);
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 transition-colors flex items-center justify-between"
+                          className="w-full px-4 py-2 text-left text-xs md:text-sm text-white hover:bg-white/10 transition-colors flex items-center justify-between"
                         >
                           <span>{quality.label}</span>
                           {isSelected && (
