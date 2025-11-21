@@ -8,7 +8,7 @@ export default async function page() {
   let playlistUrl = "";
 
   try {
-    const res = await fetch(`https://taxkoto.com/demo3/public/video-token/30`, {
+    const res = await fetch(`https://toycitybd.com/video-token/30`, {
       cache: "no-store", // Prevent caching in production
       headers: {
         "Cache-Control": "no-cache",

@@ -15,6 +15,7 @@ export default function PlayerLoader({ src = "" }: Props) {
         <p className="text-center mb-8 text-zinc-600 dark:text-zinc-400">
           BSC Preli Math Course
         </p>
+        {/* <p className="">{ src}</p> */}
         {src !== "" && (
           <HLSPlayer
             src={src}
