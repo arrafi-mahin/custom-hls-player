@@ -47,6 +47,9 @@ export default function HLSPlayer({
   const isManualQualityRef = useRef(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const qualityMenuRef = useRef<HTMLDivElement>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const speedMenuRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   // Ensure component is mounted on client side
@@ -510,6 +513,14 @@ export default function HLSPlayer({
     };
   }, [src, isMounted, xhrSetup]);
 
+  // Sync playback speed with video element
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
+
   // Show controls when paused
   useEffect(() => {
     if (!isPlaying) {
@@ -825,16 +836,22 @@ export default function HLSPlayer({
       ) {
         setShowQualityMenu(false);
       }
+      if (
+        speedMenuRef.current &&
+        !speedMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowSpeedMenu(false);
+      }
     };
 
-    if (showQualityMenu) {
+    if (showQualityMenu || showSpeedMenu) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showQualityMenu]);
+  }, [showQualityMenu, showSpeedMenu]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -1036,6 +1053,16 @@ export default function HLSPlayer({
       setCurrentQualityLevel(selectedLevel);
       console.log(`Quality changed to level: ${selectedLevel}`);
     }
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.playbackRate = speed;
+    setPlaybackSpeed(speed);
+    setShowSpeedMenu(false);
+    console.log(`Playback speed changed to: ${speed}x`);
   };
 
   const formatTime = (seconds: number): string => {
@@ -1491,6 +1518,52 @@ export default function HLSPlayer({
                 )}
               </div>
             )}
+
+            {/* Playback Speed Selector Dropdown */}
+            <div className="relative" ref={speedMenuRef}>
+              <button
+                onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                className="flex items-center justify-center min-w-[50px] h-8 text-white hover:bg-white/10 rounded px-2 text-xs font-medium transition-colors"
+                aria-label="Playback Speed"
+              >
+                {playbackSpeed}x
+                <svg
+                  className="w-4 h-4 ml-1"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu - Horizontal */}
+              {showSpeedMenu && (
+                <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-sm rounded shadow-lg px-2 py-2 h-[120px] md:h-auto  overflow-y-auto z-50" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <div className="flex flex-col items-start gap-1">
+                    {[ 0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => {
+                      const isSelected = playbackSpeed === speed;
+                      return (
+                        <button
+                          key={speed}
+                          onClick={() => handleSpeedChange(speed)}
+                          className={`px-3 py-1.5 text-start text-xs md:text-sm text-white rounded transition-colors whitespace-nowrap w-full ${
+                            isSelected 
+                              ? 'bg-white/20 font-semibold' 
+                              : 'hover:bg-white/10'
+                          }`}
+                        >
+                          {speed}x
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Fullscreen Button */}
             <button
