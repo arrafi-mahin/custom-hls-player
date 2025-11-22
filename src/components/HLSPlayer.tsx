@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { MdOutlineForward10, MdOutlineReplay10 } from "react-icons/md";
+import { BiLoaderCircle } from "react-icons/bi";
 
 interface HLSPlayerProps {
   src: string;
@@ -169,39 +170,42 @@ export default function HLSPlayer({
         setIsLoading(false);
         setError(null);
 
-        // Set initial quality level based on network type
+        // Set initial quality level to 480p
         if (hls && hls.levels && hls.levels.length > 0) {
           let initialLevel: number;
           
-          if (isMobileNetwork) {
-            // On mobile networks, start with a lower quality (middle or lower)
-            // This prevents initial loading failures on slow connections
-            const middleLevel = Math.floor(hls.levels.length / 2);
-            // Start with a level that's likely to work (around 360p-480p if available)
-            initialLevel = hls.levels.findIndex(
-              (level) => level.height && level.height <= 480
-            );
-            // If no 480p or lower found, use middle level
-            if (initialLevel === -1) {
-              initialLevel = Math.max(0, middleLevel - 1);
-            }
-            // Ensure we don't go below 0
-            initialLevel = Math.max(0, initialLevel);
+          // Always start with 480p (or closest available level)
+          // Find the level with height closest to 480p
+          initialLevel = hls.levels.findIndex(
+            (level) => level.height && level.height === 480
+          );
+          
+          // If exact 480p not found, find the closest level to 480p
+          if (initialLevel === -1) {
+            let closestLevel = 0;
+            let closestDiff = Infinity;
             
-            console.log(
-              `Mobile network detected - starting with lower quality level: ${initialLevel} (${
-                hls.levels[initialLevel].height
-              }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
-            );
-          } else {
-            // On WiFi, start with highest quality
-            initialLevel = hls.levels.length - 1;
-            console.log(
-              `WiFi/high-speed network - starting with highest quality level: ${initialLevel} (${
-                hls.levels[initialLevel].height
-              }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
-            );
+            hls.levels.forEach((level, index) => {
+              if (level.height) {
+                const diff = Math.abs(level.height - 480);
+                if (diff < closestDiff) {
+                  closestDiff = diff;
+                  closestLevel = index;
+                }
+              }
+            });
+            
+            initialLevel = closestLevel;
           }
+          
+          // Ensure we don't go below 0
+          initialLevel = Math.max(0, initialLevel);
+          
+          console.log(
+            `Starting with 480p quality level: ${initialLevel} (${
+              hls.levels[initialLevel].height
+            }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
+          );
           
           hls.currentLevel = initialLevel;
           setCurrentQualityLevel(initialLevel);
@@ -1045,7 +1049,7 @@ export default function HLSPlayer({
   if (!isMounted) {
     return (
       <div className="relative w-full max-w-6xl mx-auto rounded-sm overflow-hidden shadow-2xl aspect-video bg-black flex items-center justify-center">
-        <div className="text-white">Loading player...</div>
+        <div className="text-white/40 text-4xl animate-spin"><BiLoaderCircle /></div>
       </div>
     );
   }
@@ -1094,6 +1098,24 @@ export default function HLSPlayer({
           // }}
         />
       </div>
+
+      {/* Initial Loading Loader */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/50">
+          <div className="text-white/40 text-4xl animate-spin">
+            <BiLoaderCircle />
+          </div>
+        </div>
+      )}
+
+      {/* Buffering Loader */}
+      {isBuffering && !isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/50">
+          <div className="text-white/40 text-4xl animate-spin">
+            <BiLoaderCircle />
+          </div>
+        </div>
+      )}
 
       {/* Black Opacity Overlay - Shows when controls are visible */}
       <div
