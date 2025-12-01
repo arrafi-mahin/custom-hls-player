@@ -8,12 +8,15 @@ export default async function page() {
   let playlistUrl = "";
 
   try {
-    const res = await fetch(`https://toycitybd.com/video-token/30`, {
-      cache: "no-store", // Prevent caching in production
-      headers: {
-        "Cache-Control": "no-cache",
-      },
-    });
+    const res = await fetch(
+      `https://studio.messischool.com/api/v1/video-token/30`,
+      {
+        cache: "no-store", // Prevent caching in production
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      }
+    );
 
     if (!res.ok) {
       throw new Error(`Failed to fetch token: ${res.statusText}`);
