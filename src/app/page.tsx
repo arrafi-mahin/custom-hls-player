@@ -9,7 +9,7 @@ export default async function page() {
 
   try {
     const res = await fetch(
-      `https://studio.messischool.com/api/v1/video-token/30`,
+      `http://159.89.165.130:9000/api/v1/video-token/31`,
       {
         cache: "no-store", // Prevent caching in production
         headers: {
