@@ -166,6 +166,17 @@ export default function HLSPlayer({
 
       hls = new Hls(hlsConfig);
 
+      // Disable automatic quality level switching. We want manual/stable quality
+      // selection only. Keep HLS.js from automatically changing levels.
+      try {
+        // hls.autoLevelEnabled exists on Hls instances; set to false to disable
+        // ABR-driven level switching. Also set firstLevel/currentLevel explicitly
+        // below when manifest is parsed.
+        (hls as any).autoLevelEnabled = false;
+      } catch (e) {
+        console.warn('Could not disable HLS auto level switching', e);
+      }
+
       hls.loadSource(src);
       hls.attachMedia(video);
 
@@ -173,21 +184,21 @@ export default function HLSPlayer({
         setIsLoading(false);
         setError(null);
 
-        // Set initial quality level to 480p
+        // Set initial quality level to 480p (or closest available) and treat it
+        // as a manual selection by default so UI shows 480p instead of 'Auto'.
         if (hls && hls.levels && hls.levels.length > 0) {
           let initialLevel: number;
-          
-          // Always start with 480p (or closest available level)
-          // Find the level with height closest to 480p
+
+          // Try to find exact 480p
           initialLevel = hls.levels.findIndex(
             (level) => level.height && level.height === 480
           );
-          
+
           // If exact 480p not found, find the closest level to 480p
           if (initialLevel === -1) {
             let closestLevel = 0;
             let closestDiff = Infinity;
-            
+
             hls.levels.forEach((level, index) => {
               if (level.height) {
                 const diff = Math.abs(level.height - 480);
@@ -197,21 +208,24 @@ export default function HLSPlayer({
                 }
               }
             });
-            
+
             initialLevel = closestLevel;
           }
-          
-          // Ensure we don't go below 0
+
           initialLevel = Math.max(0, initialLevel);
-          
+
           console.log(
-            `Starting with 480p quality level: ${initialLevel} (${
-              hls.levels[initialLevel].height
-            }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
+            `Starting with default ~480p quality level: ${initialLevel} (${hls.levels[initialLevel].height}p, ${Math.round(
+              hls.levels[initialLevel].bitrate / 1000
+            )}kbps)`
           );
-          
+
+          // Apply the initial level and mark as manual selection so UI shows 480p
+          // selected by default and no ABR switches will occur.
           hls.currentLevel = initialLevel;
           setCurrentQualityLevel(initialLevel);
+          setIsManualQuality(true);
+          isManualQualityRef.current = true;
 
           // Create quality levels array for dropdown (keep original indices)
           const levels = hls.levels.map((level, index) => ({
@@ -227,35 +241,12 @@ export default function HLSPlayer({
         }
       });
 
-      // Monitor level switches
+      // Monitor level switches: only reflect the level in UI. Do NOT perform
+      // any automatic upgrades based on bandwidth or other heuristics.
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
         if (hls && hls.levels && hls.levels.length > 0) {
           const currentLevel = data.level;
           setCurrentQualityLevel(currentLevel);
-
-          // Only auto-upgrade if user hasn't manually selected a quality
-          if (!isManualQualityRef.current) {
-            const highestLevel = hls.levels.length - 1;
-
-            // If we're not at the highest level and bandwidth allows, try to switch up
-            if (
-              currentLevel < highestLevel &&
-              hls.bandwidthEstimate > hls.levels[highestLevel].bitrate * 1.2
-            ) {
-              setTimeout(() => {
-                if (
-                  hls &&
-                  hls.currentLevel < highestLevel &&
-                  !isManualQualityRef.current
-                ) {
-                  hls.currentLevel = highestLevel;
-                  console.log(
-                    `Upgraded to highest quality level: ${highestLevel}`
-                  );
-                }
-              }, 2000); // Wait 2 seconds before upgrading
-            }
-          }
         }
       });
 
@@ -1041,10 +1032,17 @@ export default function HLSPlayer({
     const selectedLevel = parseInt(e.target.value);
 
     if (selectedLevel === -1) {
-      // Auto quality
+      // "Auto" in the UI will not re-enable HLS ABR. Instead, keep autoLevelEnabled=false
+      // and pick a sensible default level (we'll pick the highest available to simulate
+      // best-quality selection while still keeping manual control disabled by ABR).
       setIsManualQuality(false);
       isManualQualityRef.current = false;
-      hls.currentLevel = -1; // Auto
+
+      const highestLevel = hls.levels ? hls.levels.length - 1 : -1;
+      if (highestLevel >= 0) {
+        hls.currentLevel = highestLevel;
+        setCurrentQualityLevel(highestLevel);
+      }
     } else {
       // Manual quality selection
       setIsManualQuality(true);
