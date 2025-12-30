@@ -83,34 +83,45 @@ export default function HLSPlayer({
       // Detect if user is on mobile network
       const isMobileNetwork = (() => {
         // Check if connection API is available
-        const connection = (navigator as any).connection || 
-                          (navigator as any).mozConnection || 
-                          (navigator as any).webkitConnection;
-        
+        const connection =
+          (navigator as any).connection ||
+          (navigator as any).mozConnection ||
+          (navigator as any).webkitConnection;
+
         if (connection) {
           // Check if connection type indicates mobile (cellular)
           const effectiveType = connection.effectiveType;
           const type = connection.type;
-          
+
           // If effectiveType is slow (2g, 3g, slow-4g) or type is cellular
-          if (effectiveType === '2g' || effectiveType === '3g' || effectiveType === 'slow-4g') {
+          if (
+            effectiveType === "2g" ||
+            effectiveType === "3g" ||
+            effectiveType === "slow-4g"
+          ) {
             return true;
           }
-          if (type === 'cellular') {
+          if (type === "cellular") {
             return true;
           }
         }
-        
+
         // Fallback: detect mobile device
-        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
-        );
-        
+        const isMobileDevice =
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+          );
+
         // If on mobile device, assume mobile network (conservative approach)
         // User can still get WiFi benefits if connection API reports fast connection
-        return isMobileDevice && (!connection || !connection.effectiveType || 
-               connection.effectiveType === '2g' || connection.effectiveType === '3g' || 
-               connection.effectiveType === 'slow-4g');
+        return (
+          isMobileDevice &&
+          (!connection ||
+            !connection.effectiveType ||
+            connection.effectiveType === "2g" ||
+            connection.effectiveType === "3g" ||
+            connection.effectiveType === "slow-4g")
+        );
       })();
 
       // Configure HLS.js based on network type
@@ -174,7 +185,7 @@ export default function HLSPlayer({
         // below when manifest is parsed.
         (hls as any).autoLevelEnabled = false;
       } catch (e) {
-        console.warn('Could not disable HLS auto level switching', e);
+        console.warn("Could not disable HLS auto level switching", e);
       }
 
       hls.loadSource(src);
@@ -215,9 +226,9 @@ export default function HLSPlayer({
           initialLevel = Math.max(0, initialLevel);
 
           console.log(
-            `Starting with default ~480p quality level: ${initialLevel} (${hls.levels[initialLevel].height}p, ${Math.round(
-              hls.levels[initialLevel].bitrate / 1000
-            )}kbps)`
+            `Starting with default ~480p quality level: ${initialLevel} (${
+              hls.levels[initialLevel].height
+            }p, ${Math.round(hls.levels[initialLevel].bitrate / 1000)}kbps)`
           );
 
           // Apply the initial level and mark as manual selection so UI shows 480p
@@ -266,13 +277,15 @@ export default function HLSPlayer({
               // Enhanced retry logic with longer delays for mobile networks
               const retryDelay = isMobileNetwork ? 3000 : 1000; // Longer delay on mobile
               const fragmentRetryDelay = isMobileNetwork ? 4000 : 2000;
-              
+
               if (
                 data.details === "manifestLoadError" ||
                 data.details === "manifestParsingError"
               ) {
                 // Manifest errors - retry with backoff (longer on mobile)
-                console.log(`Retrying manifest load in ${retryDelay}ms (mobile: ${isMobileNetwork})`);
+                console.log(
+                  `Retrying manifest load in ${retryDelay}ms (mobile: ${isMobileNetwork})`
+                );
                 setTimeout(() => {
                   if (hls) {
                     hls.startLoad();
@@ -283,7 +296,9 @@ export default function HLSPlayer({
                 data.details === "fragParsingError"
               ) {
                 // Fragment/chunk errors - retry loading (longer delay on mobile)
-                console.log(`Retrying fragment load in ${fragmentRetryDelay}ms (mobile: ${isMobileNetwork})`);
+                console.log(
+                  `Retrying fragment load in ${fragmentRetryDelay}ms (mobile: ${isMobileNetwork})`
+                );
                 setTimeout(() => {
                   if (hls) {
                     hls.startLoad();
@@ -398,19 +413,40 @@ export default function HLSPlayer({
       setVolume(video.volume);
       setIsMuted(video.muted);
     };
+    // Track the currentTime at the moment 'waiting' fires so we can detect
+    // whether playback actually stalled (no progress) before showing the
+    // buffering UI. iOS Safari commonly fires waiting briefly during normal
+    // playback, so we use a longer debounce there.
+    let waitingStartCurrentTime = 0;
+    const isIOSDevice =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
     const handleWaiting = () => {
-      // Only show buffering if video is actually playing and waiting for data
+      // Only consider showing buffering if video is playing and not enough data
       if (!video.paused && video.readyState < 3) {
+        // Store current time at moment of waiting
+        waitingStartCurrentTime = video.currentTime;
+
         // Clear any existing timeout
         if (bufferingTimeoutRef.current) {
           clearTimeout(bufferingTimeoutRef.current);
         }
-        // Small delay to prevent flickering on brief stalls
+
+        // Use a slightly longer debounce on iOS to avoid flicker during normal
+        // short stalls that don't actually block playback.
+        const waitDelay = isIOSDevice ? 800 : 300;
+
         bufferingTimeoutRef.current = setTimeout(() => {
-          if (!video.paused && video.readyState < 3) {
+          // If playback hasn't advanced since waiting and we're still waiting,
+          // show buffering UI. Use a small epsilon to account for floating
+          // point time updates.
+          const timeAdvanced =
+            Math.abs(video.currentTime - waitingStartCurrentTime) > 0.05;
+          if (!video.paused && video.readyState < 3 && !timeAdvanced) {
             setIsBuffering(true);
           }
-        }, 300);
+        }, waitDelay);
       }
     };
     const handleCanPlay = () => {
@@ -1074,7 +1110,9 @@ export default function HLSPlayer({
   if (!isMounted) {
     return (
       <div className="relative w-full max-w-6xl mx-auto rounded-sm overflow-hidden shadow-2xl aspect-video bg-black flex items-center justify-center">
-        <div className="text-white/40 text-4xl animate-spin"><BiLoaderCircle /></div>
+        <div className="text-white/40 text-4xl animate-spin">
+          <BiLoaderCircle />
+        </div>
       </div>
     );
   }
@@ -1540,18 +1578,21 @@ export default function HLSPlayer({
 
               {/* Dropdown Menu - Horizontal */}
               {showSpeedMenu && (
-                <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-sm rounded shadow-lg px-2 py-2 h-[120px] md:h-auto  overflow-y-auto z-50" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <div
+                  className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-sm rounded shadow-lg px-2 py-2 h-[120px] md:h-auto  overflow-y-auto z-50"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
                   <div className="flex flex-col items-start gap-1">
-                    {[ 0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => {
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => {
                       const isSelected = playbackSpeed === speed;
                       return (
                         <button
                           key={speed}
                           onClick={() => handleSpeedChange(speed)}
                           className={`px-3 py-1.5 text-start text-xs md:text-sm text-white rounded transition-colors whitespace-nowrap w-full ${
-                            isSelected 
-                              ? 'bg-white/20 font-semibold' 
-                              : 'hover:bg-white/10'
+                            isSelected
+                              ? "bg-white/20 font-semibold"
+                              : "hover:bg-white/10"
                           }`}
                         >
                           {speed}x
