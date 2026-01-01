@@ -373,6 +373,14 @@ export default function HLSPlayer({
         setIsLoading(false);
         setError(null);
       });
+      video.addEventListener("canplay", () => {
+        setIsLoading(false);
+        setError(null);
+      });
+      video.addEventListener("playing", () => {
+        setIsLoading(false);
+        setError(null);
+      });
       video.addEventListener("error", () => {
         setIsLoading(false);
         setError("Failed to load video");
@@ -407,7 +415,14 @@ export default function HLSPlayer({
         setBufferedRanges(ranges);
       }
     };
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      // Hide loading screen when video starts playing (important for iOS)
+      const video = videoRef.current;
+      if (video && video.readyState >= 2) {
+        setIsLoading(false);
+      }
+    };
     const handlePause = () => setIsPlaying(false);
     const handleVolumeChange = () => {
       setVolume(video.volume);
@@ -433,18 +448,28 @@ export default function HLSPlayer({
           clearTimeout(bufferingTimeoutRef.current);
         }
 
-        // Use a slightly longer debounce on iOS to avoid flicker during normal
+        // Use a longer debounce on iOS to avoid flicker during normal
         // short stalls that don't actually block playback.
-        const waitDelay = isIOSDevice ? 800 : 300;
+        const waitDelay = isIOSDevice ? 1200 : 300;
 
         bufferingTimeoutRef.current = setTimeout(() => {
-          // If playback hasn't advanced since waiting and we're still waiting,
-          // show buffering UI. Use a small epsilon to account for floating
-          // point time updates.
+          // Double-check video state before showing buffering
+          // If video is now playing or has advanced, don't show buffering
           const timeAdvanced =
-            Math.abs(video.currentTime - waitingStartCurrentTime) > 0.05;
-          if (!video.paused && video.readyState < 3 && !timeAdvanced) {
-            setIsBuffering(true);
+            Math.abs(video.currentTime - waitingStartCurrentTime) > 0.1;
+          const isActuallyWaiting =
+            !video.paused && video.readyState < 3 && !timeAdvanced;
+
+          // On iOS, be extra conservative - only show if really stuck
+          if (isIOSDevice) {
+            // On iOS, only show buffering if video is truly stalled
+            if (isActuallyWaiting && video.readyState < 2) {
+              setIsBuffering(true);
+            }
+          } else {
+            if (isActuallyWaiting) {
+              setIsBuffering(true);
+            }
           }
         }, waitDelay);
       }
@@ -464,6 +489,9 @@ export default function HLSPlayer({
         bufferingTimeoutRef.current = null;
       }
       setIsBuffering(false);
+      // Hide loading screen when video starts playing (important for iOS)
+      setIsLoading(false);
+      setIsPlaying(true);
     };
     const handleSeeking = () => {
       // Show buffering when seeking
@@ -485,8 +513,16 @@ export default function HLSPlayer({
     };
     const handleStalled = () => {
       // Video stalled - show buffering if playing
+      // On iOS, be more conservative - only show if really stalled
       if (!video.paused) {
-        setIsBuffering(true);
+        if (isIOSDevice) {
+          // On iOS, only show if readyState is very low (truly stalled)
+          if (video.readyState < 2) {
+            setIsBuffering(true);
+          }
+        } else {
+          setIsBuffering(true);
+        }
       }
     };
     const handleLoadedData = () => {
@@ -1163,7 +1199,15 @@ export default function HLSPlayer({
       </div>
 
       {/* Initial Loading Loader */}
-      {isLoading && (
+      {(() => {
+        const video = videoRef.current;
+        const isVideoPlaying =
+          video &&
+          !video.paused &&
+          video.currentTime > 0 &&
+          video.readyState >= 2;
+        return isLoading && !isPlaying && !isVideoPlaying;
+      })() && (
         <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/50">
           <div className="text-white/40 text-4xl animate-spin">
             <BiLoaderCircle />
@@ -1172,7 +1216,16 @@ export default function HLSPlayer({
       )}
 
       {/* Buffering Loader */}
-      {isBuffering && !isLoading && (
+      {(() => {
+        const video = videoRef.current;
+        const isVideoPlaying =
+          video &&
+          !video.paused &&
+          video.currentTime > 0 &&
+          video.readyState >= 3;
+        // Only show buffering if video is actually waiting/buffering, not playing
+        return isBuffering && !isLoading && !isVideoPlaying;
+      })() && (
         <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none bg-black/50">
           <div className="text-white/40 text-4xl animate-spin">
             <BiLoaderCircle />
