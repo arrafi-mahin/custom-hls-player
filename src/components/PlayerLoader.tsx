@@ -10,16 +10,14 @@ export default function PlayerLoader({ src = "" }: Props) {
     <main className="flex min-h-screen w-full flex-col items-center justify-center py-8 px-4 sm:px-8">
       <div className="w-full max-w-6xl">
         <h1 className="text-3xl font-bold text-center mb-2 text-zinc-900 dark:text-zinc-50">
-          P2A Academy Video Player
+          Secure Video Player
         </h1>
-        <p className="text-center mb-8 text-zinc-600 dark:text-zinc-400">
-          BSC Preli Math Course
-        </p>
+        <p className="text-center mb-8 text-zinc-600 dark:text-zinc-400"></p>
         {/* <p className="">{ src}</p> */}
         {src !== "" && (
           <HLSPlayer
             src={src}
-            title="BSC Preli Math Course"
+            title=""
             subtitle=""
             xhrSetup={(xhr, url) => {
               // Add custom headers for encrypted video chunk requests
